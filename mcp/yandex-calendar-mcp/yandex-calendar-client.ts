@@ -392,6 +392,28 @@ export interface CreateEventDeps {
   input: CreateEventInput
 }
 
+/** LLMs often send both end (computed) and duration_minutes — prefer duration. */
+export function normalizeCreateEventInput(input: CreateEventInput): {
+  input: CreateEventInput
+  warnings: string[]
+} {
+  const warnings: string[] = []
+  const normalized: CreateEventInput = { ...input }
+
+  if (typeof normalized.end === "string") {
+    const trimmed = normalized.end.trim()
+    if (trimmed === "") delete normalized.end
+    else normalized.end = trimmed
+  }
+
+  if (normalized.end !== undefined && normalized.duration_minutes !== undefined) {
+    warnings.push("both_end_and_duration_given: using duration_minutes, ignoring end")
+    delete normalized.end
+  }
+
+  return { input: normalized, warnings }
+}
+
 const ISO_ZONED_LOCAL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/
 const ISO_NAIVE_LOCAL = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/
 
@@ -448,56 +470,55 @@ function formatEndIsoLikeStart(start: string, endUtcMs: number): string {
 }
 
 export function resolveEventTimes(input: CreateEventInput): { start: string; end: string; timezone?: string } {
-  if (input.end !== undefined && input.duration_minutes !== undefined) {
-    throw new Error("BothEndAndDurationGiven: specify at most one of (end, duration_minutes).")
-  }
+  const { input: resolved } = normalizeCreateEventInput(input)
 
-  const startZoned = ISO_ZONED_LOCAL.test(input.start)
-  const startNaive = ISO_NAIVE_LOCAL.test(input.start)
-  if (!startZoned && !startNaive) throw new Error(`InvalidStart: ${input.start}`)
-  if (startNaive && input.timezone !== "Europe/Moscow") {
+  const startZoned = ISO_ZONED_LOCAL.test(resolved.start)
+  const startNaive = ISO_NAIVE_LOCAL.test(resolved.start)
+  if (!startZoned && !startNaive) throw new Error(`InvalidStart: ${resolved.start}`)
+  if (startNaive && resolved.timezone !== "Europe/Moscow") {
     throw new Error("InvalidTimezone: naive ISO start requires timezone='Europe/Moscow' in v1.")
   }
 
   let end: string
-  if (input.end !== undefined) {
-    const endZoned = ISO_ZONED_LOCAL.test(input.end)
-    const endNaive = ISO_NAIVE_LOCAL.test(input.end)
-    if (!endZoned && !endNaive) throw new Error(`InvalidEnd: ${input.end}`)
+  if (resolved.end !== undefined) {
+    const endZoned = ISO_ZONED_LOCAL.test(resolved.end)
+    const endNaive = ISO_NAIVE_LOCAL.test(resolved.end)
+    if (!endZoned && !endNaive) throw new Error(`InvalidEnd: ${resolved.end}`)
     if (startZoned !== endZoned) {
       throw new Error("MixedTimeForms: start and end must use the same form (both zoned or both naive).")
     }
-    end = input.end
+    end = resolved.end
   } else {
-    const durMs = (input.duration_minutes ?? 60) * 60_000
-    const startMs = isoToUtcMs(input.start, input.timezone)
-    end = formatEndIsoLikeStart(input.start, startMs + durMs)
+    const durMs = (resolved.duration_minutes ?? 60) * 60_000
+    const startMs = isoToUtcMs(resolved.start, resolved.timezone)
+    end = formatEndIsoLikeStart(resolved.start, startMs + durMs)
   }
 
-  const startMsCheck = isoToUtcMs(input.start, input.timezone)
-  const endMsCheck = isoToUtcMs(end, input.timezone)
+  const startMsCheck = isoToUtcMs(resolved.start, resolved.timezone)
+  const endMsCheck = isoToUtcMs(end, resolved.timezone)
   if (endMsCheck <= startMsCheck) {
     throw new Error("InvalidTimeRange: resolved end must be > start.")
   }
   if (endMsCheck - startMsCheck > 24 * 60 * 60_000) {
     throw new Error("InvalidEventDuration: event must not exceed 24h in v1.")
   }
-  if (input.duration_minutes !== undefined) {
-    if (input.duration_minutes < 1 || input.duration_minutes > 1440 || !Number.isInteger(input.duration_minutes)) {
+  if (resolved.duration_minutes !== undefined) {
+    if (resolved.duration_minutes < 1 || resolved.duration_minutes > 1440 || !Number.isInteger(resolved.duration_minutes)) {
       throw new Error("InvalidDurationMinutes: duration_minutes must be an integer in [1, 1440].")
     }
   }
 
-  return { start: input.start, end, timezone: input.timezone }
+  return { start: resolved.start, end, timezone: resolved.timezone }
 }
 
 export async function createEvent(deps: CreateEventDeps): Promise<CreateEventResult> {
-  const { start, end, timezone } = resolveEventTimes(deps.input)
+  const { input, warnings: normWarnings } = normalizeCreateEventInput(deps.input)
+  const { start, end, timezone } = resolveEventTimes(input)
 
-  const warnings: string[] = []
+  const warnings: string[] = [...normWarnings]
 
-  if (deps.input.client_token) {
-    const hit = deps.cache.get(deps.input.client_token)
+  if (input.client_token) {
+    const hit = deps.cache.get(input.client_token)
     if (hit) {
       return {
         uid: hit.uid,
@@ -518,14 +539,14 @@ export async function createEvent(deps: CreateEventDeps): Promise<CreateEventRes
     uid,
     sequence: 0,
     organizer: deps.login,
-    title: deps.input.title,
+    title: input.title,
     start,
     end,
     timezone,
-    attendees: deps.input.attendees ?? [],
-    description: deps.input.description,
-    location: deps.input.location,
-    reminderMinutes: deps.input.reminder_minutes ?? null,
+    attendees: input.attendees ?? [],
+    description: input.description,
+    location: input.location,
+    reminderMinutes: input.reminder_minutes ?? null,
     status: "CONFIRMED",
   }
   const iCalString = generateEventIcs(icsInput)
@@ -580,8 +601,8 @@ export async function createEvent(deps: CreateEventDeps): Promise<CreateEventRes
     warnings,
   }
 
-  if (deps.input.client_token) {
-    deps.cache.set(deps.input.client_token, { uid, href: resp.url, etag, sequence: 0 })
+  if (input.client_token) {
+    deps.cache.set(input.client_token, { uid, href: resp.url, etag, sequence: 0 })
   }
 
   return result

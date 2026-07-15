@@ -38,7 +38,7 @@ Ouroboros **намеренно** не выдаёт MCP tools в быстром/e
 
 ## Правила времени
 - ISO с offset (`+03:00`) **или** naive + `timezone: Europe/Moscow`
-- Для **create_event**: передать **либо** `end`, **либо** `duration_minutes` — **никогда оба** (иначе `BothEndAndDurationGiven`)
+- Для **create_event**: удобнее передавать `duration_minutes`; `end` — альтернатива. Если модель отправит оба, сервер возьмёт `duration_minutes`
 - Передавай `client_token` при create для идемпотентности
 
 ## Запреты

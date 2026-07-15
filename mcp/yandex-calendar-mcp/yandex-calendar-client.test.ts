@@ -435,24 +435,23 @@ describe("createEvent", () => {
     expect(puts.length).toBe(1)  // only one PUT
   })
 
-  it("rejects when both end and duration_minutes are set", async () => {
+  it("prefers duration_minutes when both end and duration_minutes are set", async () => {
     stubTsdav([])
     const cache = new IdempotencyCache(10_000)
-    await expect(
-      createEvent({
-        caldavUrl: "https://caldav.yandex.ru/",
-        calendarUrl: "https://caldav.yandex.ru/calendars/me/personal/",
-        login: "me@yandex.ru",
-        password: "pw",
-        cache,
-        input: {
-          title: "Test",
-          start: "2026-05-15T12:00:00+03:00",
-          end: "2026-05-15T13:00:00+03:00",
-          duration_minutes: 30,
-        } as CreateEventInput,
-      }),
-    ).rejects.toThrow(/BothEndAndDurationGiven/)
+    const r = await createEvent({
+      caldavUrl: "https://caldav.yandex.ru/",
+      calendarUrl: "https://caldav.yandex.ru/calendars/me/personal/",
+      login: "me@yandex.ru",
+      password: "pw",
+      cache,
+      input: {
+        title: "Test",
+        start: "2026-05-15T12:00:00+03:00",
+        end: "2026-05-15T13:00:00+03:00",
+        duration_minutes: 30,
+      } as CreateEventInput,
+    })
+    expect(r.warnings).toContain("both_end_and_duration_given: using duration_minutes, ignoring end")
   })
 
   it("warns when client_token absent", async () => {
@@ -542,10 +541,9 @@ describe("resolveEventTimes (offset arithmetic + validation)", () => {
     ).toThrow(/InvalidTimezone/)
   })
 
-  it("rejects when both end and duration_minutes given", () => {
-    expect(() =>
-      resolveEventTimes(base({ end: "2026-05-15T13:00:00+03:00", duration_minutes: 30 }))
-    ).toThrow(/BothEndAndDurationGiven/)
+  it("prefers duration_minutes when both end and duration_minutes given", () => {
+    const r = resolveEventTimes(base({ end: "2026-05-15T13:00:00+03:00", duration_minutes: 30 }))
+    expect(r.end).toBe("2026-05-15T12:30:00+03:00")
   })
 
   it("rejects end ≤ start", () => {

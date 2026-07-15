@@ -86,7 +86,7 @@ export function buildServer(): McpServer {
     "Creates a calendar event in the user's Yandex Calendar via CalDAV. Sends invitations to attendees. " +
       "TIME RULE: start/end must both be ISO 8601 with explicit offset (e.g. 2026-05-15T12:00:00+03:00) " +
       "OR both naive with timezone=Europe/Moscow. Other timezones require zoned ISO. " +
-      "AT MOST ONE of (end, duration_minutes) may be set; specifying both is an error. " +
+      "Specify end OR duration_minutes (default 60 min if neither). If both are sent, duration_minutes wins. " +
       "IDEMPOTENCY: pass a stable client_token (e.g. SHA-1 of title+start+sorted(attendees)+session-id) " +
       "so retries within 10 minutes don't double-book. " +
       "Does NOT promise external attendee availability — only writes to the user's own calendar.",
@@ -103,9 +103,6 @@ export function buildServer(): McpServer {
       client_token: z.string().min(8).max(128).optional(),
     },
     async (args) => {
-      if (args.end !== undefined && args.duration_minutes !== undefined) {
-        return asText("BothEndAndDurationGiven: specify exactly one of (end, duration_minutes), not both.")
-      }
       try {
         const ctx = await getYandexContext()
         const result = await createEvent({ ...ctx, cache: YANDEX_CACHE, input: args })
