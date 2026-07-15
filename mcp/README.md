@@ -2,6 +2,41 @@
 
 Папка для исходников MCP. Ouroboros подключается как **клиент** — сервер запускается отдельно.
 
+## yandex-calendar-mcp
+
+| Параметр | Значение |
+|----------|----------|
+| Папка | `mcp/yandex-calendar-mcp/` |
+| HTTP | `POST /mcp`, `GET /healthz` |
+| Порт (хост) | `3000` (`npm run server:http`) |
+| Порт (Docker) | `3004` → `3000` (сервис в `docker-compose.yml`) |
+| ID в Ouroboros | `yandex-calendar` |
+| Tools prefix | `mcp_yandex_calendar__*` |
+
+### Запуск на хосте (текущая схема)
+
+```powershell
+cd mcp/yandex-calendar-mcp
+# .env с YANDEX_LOGIN, YANDEX_APP_PASSWORD
+npm run server:http
+```
+
+### Регистрация в Ouroboros
+
+Settings → Advanced → MCP → Add server:
+
+```json
+{
+  "id": "yandex-calendar",
+  "name": "yandex-calendar",
+  "url": "http://host.docker.internal:3000/mcp",
+  "transport": "streamable_http",
+  "enabled": true
+}
+```
+
+Также включите **MCP_ENABLED** в Advanced. Playbook: `skills/yandex_calendar/SKILL.md`.
+
 ## Минимальный контракт
 
 1. Transport: `streamable_http`

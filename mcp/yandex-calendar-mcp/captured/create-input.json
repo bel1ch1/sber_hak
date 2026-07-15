@@ -1,0 +1,9 @@
+{
+  "title": "Тестовая встреча (можно игнорировать)",
+  "start": "2026-06-20T15:00:00+03:00",
+  "duration_minutes": 30,
+  "description": "Проверка MCP yandex_calendar_create_event — фиксация запроса/ответа.",
+  "location": "Онлайн",
+  "reminder_minutes": 15,
+  "client_token": "capture-demo-2026-06-16-0001"
+}
