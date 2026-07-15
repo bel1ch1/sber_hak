@@ -1,0 +1,31 @@
+# Репозиторий хакатона
+# В git: конфиг, гайд, skills, mcp, базовая память агента
+# Не в git: секреты, инфра, runtime-данные, личные рабочие файлы
+
+*
+
+!.gitignore
+!OUROBOROS_DEV.md
+!agent.env
+
+# --- Общая разработка команды ---
+!skills/
+!skills/**
+!mcp/
+!mcp/**
+
+# --- Память агента: шаблон + статичные знания, без runtime ---
+!memory/
+!memory/identity.md
+!memory/knowledge/
+!memory/knowledge/**
+# Исходы прогонов — локальные, не коммитим
+memory/knowledge/outcomes/
+
+# --- Секреты и инфра ---
+.env
+docker-compose.yml
+ouroboros/
+
+# --- Рабочая папка: личные файлы каждого разработчика ---
+workspace/
