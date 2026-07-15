@@ -2,6 +2,41 @@
 
 Папка для исходников MCP. Ouroboros подключается как **клиент** — сервер запускается отдельно.
 
+## yandex-wiki-mcp (read-only)
+
+| Параметр | Значение |
+|----------|----------|
+| Папка | `mcp/yandex-wiki-mcp/` |
+| Режим | **read-only** (2 tools) |
+| HTTP | `POST /mcp`, `GET /healthz` |
+| Порт (хост) | `3001` |
+| Порт (Docker) | `3005` → `3000` |
+| ID в Ouroboros | `yandex-wiki` |
+| OAuth scope | `wiki:read` достаточно |
+
+### Auth
+
+`YANDEX_WIKI_OAUTH_TOKEN` + `YANDEX_WIKI_ORG_ID` (организация wiki.yandex.ru).
+
+### Tools
+
+- `mcp_yandex_wiki__yandex_wiki_get_page`
+- `mcp_yandex_wiki__yandex_wiki_list_descendants`
+
+### Регистрация в Ouroboros
+
+```json
+{
+  "id": "yandex-wiki",
+  "name": "yandex-wiki",
+  "url": "http://host.docker.internal:3001/mcp",
+  "transport": "streamable_http",
+  "enabled": true
+}
+```
+
+Playbook: `skills/yandex_wiki/SKILL.md`.
+
 ## yandex-calendar-mcp
 
 | Параметр | Значение |
@@ -13,13 +48,22 @@
 | ID в Ouroboros | `yandex-calendar` |
 | Tools prefix | `mcp_yandex_calendar__*` |
 
-### Запуск на хосте (текущая схема)
+### Запуск на хосте (альтернатива)
 
 ```powershell
 cd mcp/yandex-calendar-mcp
-# .env с YANDEX_LOGIN, YANDEX_APP_PASSWORD
 npm run server:http
 ```
+
+### Запуск в Docker (рекомендуется)
+
+```powershell
+# из корня sber_hak
+docker compose up -d --build yandex-calendar-mcp
+curl http://localhost:3004/healthz
+```
+
+Ouroboros в том же compose подключается к `http://yandex-calendar-mcp:3000/mcp`.
 
 ### Регистрация в Ouroboros
 

@@ -1,0 +1,1 @@
+Yandex Calendar MCP list_events works, but create_event may be blocked by a schema/server mismatch: exposed tool schema can force both end and duration_minutes while server rejects both with BothEndAndDurationGiven. On this error, try at most one alternate end/duration shape, verify with list_events, then stop and report no event created.

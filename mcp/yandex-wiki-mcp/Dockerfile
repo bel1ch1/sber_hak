@@ -10,7 +10,6 @@ RUN npx esbuild server.ts \
   --format=esm \
   --outfile=dist/server.mjs \
   --packages=external
-RUN npm prune --omit=dev && npm cache clean --force
 
 FROM node:24-bookworm-slim
 RUN apt-get update \
@@ -18,12 +17,11 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
-COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder --chown=node:node /app/dist/server.mjs ./dist/server.mjs
-COPY --chown=node:node certs ./certs
 ENV NODE_ENV=production \
     MCP_TRANSPORT=http \
-    NODE_EXTRA_CA_CERTS=/app/certs/corp-ca.pem
+    MCP_HTTP_PORT=3000
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
   CMD node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

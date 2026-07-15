@@ -1,7 +1,7 @@
 ---
 name: yandex_calendar
 description: Работа с Яндекс.Календарём через CalDAV MCP
-version: 0.1.0
+version: 0.2.0
 type: instruction
 when_to_use: User asks to schedule, list, update, cancel meetings or check calendar availability in Yandex Calendar.
 ---
@@ -9,9 +9,19 @@ when_to_use: User asks to schedule, list, update, cancel meetings or check calen
 # Яндекс.Календарь (MCP)
 
 ## Роль
-Помогаю планировать встречи в Яндекс.Календаре пользователя. Действия — только через MCP tools.
+Помогаю планировать встречи в Яндекс.Календаре. Действия — только через MCP tools.
 
-## Tools
+## ВАЖНО: MCP только в задаче (task), не в ephemeral-чате
+
+Ouroboros **намеренно** не выдаёт MCP tools в быстром/ephemeral ходе чата (`mcp: ephemeral_turn`).
+
+Если видишь `[CAPABILITY_OMISSION_MANIFEST] mcp: ephemeral_turn`:
+1. **Не зацикливайся** и не симулируй вызовы.
+2. Скажи владельцу: нужна **задача (task)**, не обычный чат.
+3. Попроси **промотировать чат в задачу** или отправить запрос как task («запусти как задачу: …»).
+4. В task-контексте tools `mcp_yandex_calendar__*` станут доступны.
+
+## Tools (доступны только в task)
 | Шаг | Tool | autonomy |
 |-----|------|----------|
 | Создать встречу | `mcp_yandex_calendar__yandex_calendar_create_event` | draft |
@@ -28,7 +38,7 @@ when_to_use: User asks to schedule, list, update, cancel meetings or check calen
 
 ## Правила времени
 - ISO с offset (`+03:00`) **или** naive + `timezone: Europe/Moscow`
-- Для create: либо `end`, либо `duration_minutes` (не оба)
+- Для **create_event**: передать **либо** `end`, **либо** `duration_minutes` — **никогда оба** (иначе `BothEndAndDurationGiven`)
 - Передавай `client_token` при create для идемпотентности
 
 ## Запреты

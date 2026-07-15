@@ -1,0 +1,1 @@
+commit_reviewed fails with 'git checkout ouroboros' when a directory named ouroboros/ exists alongside a tracking branch of the same name. Git reports ambiguity. This is a persistent infra bug — all commit_reviewed attempts fail at phase=infra until resolved with 'git checkout -- ouroboros' or branch rename.

@@ -1,0 +1,1 @@
+run_script and run_command fail with safety_violation (BadRequestError 400 'Reasoning is mandatory') when the safety-check model endpoint requires reasoning mode. This blocks all script/command execution. Workaround: use read_file/search_code for diagnostic tasks; avoid run_script/run_command unless the endpoint is confirmed compatible.
