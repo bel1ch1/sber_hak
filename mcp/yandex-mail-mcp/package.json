@@ -1,0 +1,25 @@
+{
+  "name": "yandex-mail-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "with-ca.cmd --import tsx server.ts",
+    "server:http": "with-ca.cmd --import tsx server.ts --http",
+    "smoke:discovery": "with-ca.cmd --import tsx smoke-discovery-only.ts",
+    "test": "node --import tsx --test --test-reporter=spec yandex-mail.test.ts yandex-mail-schemas.test.ts server-factory.test.ts http-transport.test.ts",
+    "build:check": "npx esbuild server.ts --bundle --platform=node --target=node24 --format=esm --outfile=.build-check/server.mjs --packages=external && echo build:check ok"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "imapflow": "^1.0.189",
+    "mailparser": "^3.7.2",
+    "nodemailer": "^6.10.0",
+    "tsx": "^4.20.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.17",
+    "esbuild": "^0.25.0"
+  }
+}

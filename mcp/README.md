@@ -37,6 +37,43 @@
 
 Playbook: `skills/yandex_wiki/SKILL.md`.
 
+## yandex-mail-mcp
+
+| Параметр | Значение |
+|----------|----------|
+| Папка | `mcp/yandex-mail-mcp/` |
+| Режим | IMAP read + SMTP send (4 tools) |
+| HTTP | `POST /mcp`, `GET /healthz` |
+| Порт (хост) | `3002` |
+| Порт (Docker) | `3006` → `3000` |
+| ID в Ouroboros | `yandex-mail` |
+| OAuth scopes | `mail:imap_ro` + `mail:smtp` (или app password) |
+
+### Auth
+
+`YANDEX_MAIL_LOGIN` + (`YANDEX_MAIL_OAUTH_TOKEN` **или** `YANDEX_MAIL_APP_PASSWORD`).
+
+### Tools
+
+- `mcp_yandex_mail__yandex_mail_list_folders`
+- `mcp_yandex_mail__yandex_mail_list_messages`
+- `mcp_yandex_mail__yandex_mail_get_message`
+- `mcp_yandex_mail__yandex_mail_send`
+
+### Регистрация в Ouroboros
+
+```json
+{
+  "id": "yandex-mail",
+  "name": "yandex-mail",
+  "url": "http://yandex-mail-mcp:3000/mcp",
+  "transport": "streamable_http",
+  "enabled": true
+}
+```
+
+Playbook: `skills/yandex_mail/SKILL.md`.
+
 ## yandex-calendar-mcp
 
 | Параметр | Значение |
