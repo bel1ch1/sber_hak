@@ -153,3 +153,73 @@ cd mcp/your-server
 ```
 
 Из контейнера Ouroboros используйте `host.docker.internal:9999`.
+
+## jira-mcp (план ИС)
+
+| Параметр | Значение |
+|----------|----------|
+| Папка | `mcp/jira-mcp/` |
+| Режим | Python/FastMCP · mock или real (Jira Cloud REST v2) |
+| HTTP | `POST /mcp` (streamable_http) |
+| Порт (хост) | `9101` |
+| ID в Ouroboros | `jira` |
+
+### Auth
+`.env` из `config.example.env`: `JIRA_BASE_URL` + `JIRA_EMAIL` + `JIRA_API_TOKEN` (Basic). Запуск: `./run_real.sh`, проверка: `verify_real.py`.
+
+### Tools
+- `mcp_jira__jira_get_project`, `mcp_jira__jira_search` (read)
+- `mcp_jira__jira_create_issue`, `mcp_jira__jira_bulk_create`
+- `mcp_jira__jira_create_onboarding_plan` — Epic + ~20 задач из шаблона роли, `dry_run→approve→commit`, идемпотентность по label `onboarding:<hire_id>`
+- `mcp_jira__jira_rollback_plan` — откат по label
+
+### Регистрация в Ouroboros
+```json
+{ "id": "jira", "name": "jira", "url": "http://localhost:9101/mcp", "transport": "streamable_http", "enabled": true }
+```
+Playbook: `skills/onboarding/SKILL.md` (шаг 7). Гоча: Jira Cloud удалил `POST /rest/api/2/search` (410) — используем `/search/jql`.
+
+## wiki-mock-mcp (мок корп-вики)
+
+| Параметр | Значение |
+|----------|----------|
+| Папка | `mcp/wiki-mock-mcp/` |
+| Режим | Python/FastMCP · read-only, локальные markdown-страницы |
+| HTTP | `POST /mcp` (streamable_http) |
+| Порт (хост) | `9102` |
+| ID в Ouroboros | `wiki` |
+
+### Auth
+Не нужен (мок). Контент — `pages/*.md` (frontmatter: slug/title/parent/tags), 7 страниц о компании (доступы, команда, курсы, бадди, стандарты).
+
+### Tools
+- `mcp_wiki__wiki_list_pages`, `mcp_wiki__wiki_search` (полнотекстовый!), `mcp_wiki__wiki_get_page`
+
+### Регистрация в Ouroboros
+```json
+{ "id": "wiki", "name": "wiki", "url": "http://localhost:9102/mcp", "transport": "streamable_http", "enabled": true }
+```
+Playbook: `skills/onboarding/SKILL.md` (шаг 0). Гоча Ouroboros: MCP-сервер, добавленный среди сессии, не попадает в envelope воркеров — нужен мягкий `/restart`.
+
+## confluence-mcp (реальная вика)
+
+| Параметр | Значение |
+|----------|----------|
+| Папка | `mcp/confluence-mcp/` |
+| Режим | Python/FastMCP · Confluence Cloud REST v1 |
+| HTTP | `POST /mcp` (streamable_http) |
+| Порт (хост) | `9103` |
+| ID в Ouroboros | `confluence` |
+
+### Auth
+Те же email+API-token, что для Jira (Basic). `.env` из `config.example.env` + `CONFLUENCE_SPACE_KEY`. Требуется добавить продукт Confluence к Atlassian-сайту (free). Сидер мок-страниц: `seed_confluence.py`.
+
+### Tools
+- `mcp_confluence__confluence_list_spaces`, `…_list_pages`, `…_search` (CQL), `…_get_page` (read)
+- `mcp_confluence__confluence_create_page` (markdown→storage)
+
+### Регистрация в Ouroboros
+```json
+{ "id": "confluence", "name": "confluence", "url": "http://localhost:9103/mcp", "transport": "streamable_http", "enabled": true }
+```
+Playbook: `skills/onboarding/SKILL.md` (шаг 4 — письмо с инфо о компании).

@@ -1,0 +1,25 @@
+# Шаблон плана на испытательный срок: backend-разработчик (~12 недель).
+# due_offset_days — смещение дедлайна от даты выхода новичка (start_date).
+# Редактируемый файл: правь задачи/сроки под свою команду.
+epic: "Онбординг: {role} — {team}"
+tasks:
+  - {summary: "Настроить рабочее окружение (IDE, репозиторий, зависимости)", due_offset_days: 1}
+  - {summary: "Получить и проверить доступы к рабочим системам", due_offset_days: 1}
+  - {summary: "Установочная встреча с командой", due_offset_days: 1}
+  - {summary: "Прочитать ARCHITECTURE.md и DEVELOPMENT.md сервиса", due_offset_days: 2}
+  - {summary: "Первый 1:1 с бадди", due_offset_days: 3}
+  - {summary: "Оформить план развития на испытательный срок", due_offset_days: 3}
+  - {summary: "Настроить локальный запуск сервиса", due_offset_days: 4}
+  - {summary: "Пройти обязательный security-тренинг", due_offset_days: 5}
+  - {summary: "Разобрать первый good-first-issue тикет", due_offset_days: 5}
+  - {summary: "Первый PR (мелкий фикс)", due_offset_days: 7}
+  - {summary: "Изучить CI/CD пайплайн команды", due_offset_days: 8}
+  - {summary: "Учебный code review чужого PR", due_offset_days: 10}
+  - {summary: "Знакомство со смежными командами и сервисами", due_offset_days: 12}
+  - {summary: "HR чек-ин: обратная связь за 2 недели", due_offset_days: 14}
+  - {summary: "Разобраться в мониторинге и алертах сервиса", due_offset_days: 14}
+  - {summary: "Взять первую боевую задачу (размер S)", due_offset_days: 16}
+  - {summary: "Пройти курс по внутренним стандартам разработки", due_offset_days: 20}
+  - {summary: "Демо результата на командной встрече", due_offset_days: 25}
+  - {summary: "Ретро первого месяца с руководителем", due_offset_days: 30}
+  - {summary: "Финальный чек-ин по итогам испытательного срока", due_offset_days: 80}
