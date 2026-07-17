@@ -9,6 +9,13 @@ MCP-сервер для **Яндекс.Почты** через IMAP (чтени�
 | `yandex_mail_get_message` | Тело письма по `uid` + `folder` |
 | `yandex_mail_send` | Отправка plain-text письма (SMTP) |
 
+## Обфускация PII
+
+По умолчанию (`MAIL_OBFUSCATION=true`) агент **не видит реальных email-адресов** —
+только обезличенные id (`usr_a1b2c3`, `self`, `ext_…`). Сопоставление `id → почта`
+лежит в `recipients.csv` **внутри MCP**. Онбординг = одна строка в CSV.
+Подробно — [OBFUSCATION.md](OBFUSCATION.md).
+
 ## Auth
 
 Один из вариантов:
@@ -64,3 +71,4 @@ curl http://localhost:3006/healthz
 - Только plain-text при отправке (без вложений)
 - Нет удаления/перемещения писем
 - `MAIL_SEND_ENABLED=false` отключает `yandex_mail_send`
+- Обфускация касается адресов, не тела письма (см. OBFUSCATION.md → «Границы»)

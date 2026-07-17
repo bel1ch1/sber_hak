@@ -7,7 +7,7 @@
     "server": "with-ca.cmd --import tsx server.ts",
     "server:http": "with-ca.cmd --import tsx server.ts --http",
     "smoke:discovery": "with-ca.cmd --import tsx smoke-discovery-only.ts",
-    "test": "node --import tsx --test --test-reporter=spec yandex-mail.test.ts yandex-mail-schemas.test.ts server-factory.test.ts http-transport.test.ts",
+    "test": "node --import tsx --test --test-reporter=spec yandex-mail.test.ts yandex-mail-schemas.test.ts server-factory.test.ts http-transport.test.ts recipient-directory.test.ts obfuscation.test.ts",
     "build:check": "npx esbuild server.ts --bundle --platform=node --target=node24 --format=esm --outfile=.build-check/server.mjs --packages=external && echo build:check ok"
   },
   "dependencies": {
