@@ -1,6 +1,12 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
-import { ListMessagesInput, GetMessageInput, SendMailInput } from "./yandex-mail-schemas.ts"
+import {
+  ListMessagesInput,
+  GetMessageInput,
+  SendMailInput,
+  SendMailByIdInput,
+  RecipientId,
+} from "./yandex-mail-schemas.ts"
 
 describe("ListMessagesInput", () => {
   it("defaults folder to INBOX", () => {
@@ -35,5 +41,21 @@ describe("SendMailInput", () => {
 
   it("rejects empty to", () => {
     assert.throws(() => SendMailInput.parse({ to: [], subject: "x", text: "y" }))
+  })
+})
+
+describe("SendMailByIdInput / RecipientId", () => {
+  it("accepts opaque recipient ids", () => {
+    const r = SendMailByIdInput.parse({ to: ["usr_a1b2c3", "self"], subject: "Hi", text: "Body" })
+    assert.deepEqual(r.to, ["usr_a1b2c3", "self"])
+  })
+
+  it("rejects an email address in place of an id", () => {
+    assert.throws(() => RecipientId.parse("someone@yandex.ru"))
+    assert.throws(() => SendMailByIdInput.parse({ to: ["a@yandex.ru"], subject: "x", text: "y" }))
+  })
+
+  it("rejects empty to", () => {
+    assert.throws(() => SendMailByIdInput.parse({ to: [], subject: "x", text: "y" }))
   })
 })

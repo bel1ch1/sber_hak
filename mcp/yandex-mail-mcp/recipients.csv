@@ -1,0 +1,18 @@
+# recipients.csv — curated directory that lives INSIDE the MCP.
+#
+# The agent never sees this file or the emails in it. It only ever passes the
+# opaque `id` values (column 1). The MCP maps id -> email server-side when
+# sending, and email -> id when returning mail, so real addresses never reach
+# the agent / the LLM.
+#
+# Onboarding a new hire = add one row: a fresh, meaningless id + their mailbox.
+# Reserved id "self" always maps to YANDEX_MAIL_LOGIN automatically — do NOT
+# list it here.
+#
+# Columns: id,email,label   (label is a maintainer-only note, never exposed)
+id,email,label
+usr_a1b2c3,ivan.petrov@yandex.ru,Ivan Petrov — onboarding mentor
+usr_d4e5f6,maria.smirnova@yandex.ru,Maria Smirnova — HR
+usr_7g8h9j,team-lead@yandex.ru,Team lead
+usr_k1m2n3,newbie.alpha@yandex.ru,New hire #1 (cohort 2026-07)
+usr_p4q5r6,newbie.bravo@yandex.ru,New hire #2 (cohort 2026-07)

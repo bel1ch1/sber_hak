@@ -1,0 +1,33 @@
+{
+  "project": "SCRUM",
+  "board": { "columns": ["Бэклог", "В работе", "В тестировании", "Сделано"] },
+  "sprints": [
+    {
+      "id": "Спринт 12",
+      "state": "active",
+      "tasks": [
+        { "key": "SCRUM-210", "summary": "Оптимизация запросов в сервисе платежей", "assignee": "usr_a1b2c3", "status": "В работе", "level": "senior", "area": "backend", "estimate": 8 },
+        { "key": "SCRUM-211", "summary": "Миграция очередей на Kafka", "assignee": "usr_7g8h9j", "status": "В работе", "level": "lead", "area": "backend", "estimate": 13 },
+        { "key": "SCRUM-212", "summary": "Рефактор формы оплаты (React)", "assignee": "usr_it_003", "status": "В тестировании", "level": "middle", "area": "frontend", "estimate": 5 },
+        { "key": "SCRUM-213", "summary": "Push-уведомления в мобильном", "assignee": "usr_it_004", "status": "В работе", "level": "senior", "area": "mobile", "estimate": 8 },
+        { "key": "SCRUM-214", "summary": "E2E-набор для чекаута", "assignee": "usr_qa_005", "status": "В тестировании", "level": "senior", "area": "qa", "estimate": 5 },
+        { "key": "SCRUM-215", "summary": "Регресс модуля возвратов", "assignee": "usr_qa_006", "status": "Сделано", "level": "middle", "area": "qa", "estimate": 3 },
+        { "key": "SCRUM-216", "summary": "Дашборд конверсии оплаты", "assignee": "usr_an_007", "status": "В работе", "level": "senior", "area": "analytics", "estimate": 5 },
+        { "key": "SCRUM-217", "summary": "Документация API платежей", "assignee": "usr_a1b2c3", "status": "Сделано", "level": "senior", "area": "backend", "estimate": 2 }
+      ]
+    }
+  ],
+  "backlog": [
+    { "key": "SCRUM-251", "summary": "Добавить структурные логи в сервис оплаты", "status": "Бэклог", "level": "junior", "area": "backend", "estimate": 2, "skills": ["Python"], "good_first_issue": true },
+    { "key": "SCRUM-256", "summary": "Починить флаки-тест в CI", "status": "Бэклог", "level": "junior", "area": "backend", "estimate": 2, "skills": ["Python", "pytest"], "good_first_issue": true },
+    { "key": "SCRUM-258", "summary": "Обновить README сервиса платежей", "status": "Бэклог", "level": "junior", "area": "backend", "estimate": 1, "skills": ["Markdown"], "good_first_issue": true },
+    { "key": "SCRUM-262", "summary": "Unit-тесты для utils-модуля", "status": "Бэклог", "level": "junior", "area": "backend", "estimate": 3, "skills": ["Python"], "good_first_issue": true },
+    { "key": "SCRUM-265", "summary": "Мелкий баг в валидации формы оплаты", "status": "Бэклог", "level": "junior", "area": "backend", "estimate": 2, "skills": ["Python"], "good_first_issue": false },
+    { "key": "SCRUM-270", "summary": "Рефактор модуля идемпотентности", "status": "Бэклог", "level": "middle", "area": "backend", "estimate": 5, "skills": ["Python", "PostgreSQL"], "good_first_issue": false },
+    { "key": "SCRUM-274", "summary": "Индекс для таблицы транзакций", "status": "Бэклог", "level": "middle", "area": "backend", "estimate": 3, "skills": ["PostgreSQL"], "good_first_issue": false },
+    { "key": "SCRUM-281", "summary": "Автотест для формы логина", "status": "Бэклог", "level": "junior", "area": "qa", "estimate": 3, "skills": ["Postman"], "good_first_issue": true },
+    { "key": "SCRUM-283", "summary": "Чек-лист регресса для возвратов", "status": "Бэклог", "level": "junior", "area": "qa", "estimate": 2, "skills": ["тест-кейсы"], "good_first_issue": true },
+    { "key": "SCRUM-291", "summary": "Ad-hoc отчёт по отказам оплаты", "status": "Бэклог", "level": "junior", "area": "analytics", "estimate": 3, "skills": ["SQL"], "good_first_issue": true },
+    { "key": "SCRUM-293", "summary": "Витрина по воронке онбординга", "status": "Бэклог", "level": "junior", "area": "analytics", "estimate": 3, "skills": ["SQL"], "good_first_issue": true }
+  ]
+}
