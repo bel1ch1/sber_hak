@@ -6,6 +6,9 @@
 
 !.gitignore
 !OUROBOROS_DEV.md
+!README.md
+!ONBOARDING_AGENT_PROMPTS.md
+!ONBOARDING_AGENT_DEVELOPMENT_CONTEXT.md
 !agent.env
 
 # --- Общая разработка команды ---

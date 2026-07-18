@@ -27,7 +27,9 @@ Outcome cards пишутся агентом после каждого прого
 ### Шаги
 
 1. **Секреты:** скопируйте `agent.env` → `.env`, задайте `OUROBOROS_NETWORK_PASSWORD` и API-ключ провайдера.
-2. **Движок:** `git clone https://github.com/razzant/ouroboros.git` (один раз, в корень проекта).
+2. **Движок:** клонируйте ветку `ouroboros` (не только `main`):
+   `git clone --branch ouroboros --single-branch https://github.com/razzant/ouroboros.git`
+   (один раз, в корень проекта). Dockerfile при сборке сам checkout'ит `ouroboros` и нормализует LF.
 3. **Docker Compose:** создайте `docker-compose.yml` (шаблон — в конце §0).
 4. **Запуск:** `docker compose up -d --build` → http://localhost:8765
 5. **MCP:** поднимите сервер из `mcp/`, зарегистрируйте URL в Settings → Advanced → MCP.
@@ -54,13 +56,15 @@ services:
       - "${OUROBOROS_SERVER_PORT:-8765}:8765"
     environment:
       OUROBOROS_SERVER_HOST: "0.0.0.0"
-      OUROBOROS_DATA_DIR: "/app/data"
+      # Runtime data MUST be outside the Git worktree (/app).
+      # /app/data makes untracked runtime files look like a dirty tree and blocks /restart.
+      OUROBOROS_DATA_DIR: "/data"
       OUROBOROS_FILE_BROWSER_DEFAULT: "/workspace"
     volumes:
-      - ouroboros-data:/app/data
+      - ouroboros-data:/data
       - ./${HACKATHON_WORKSPACE_DIR:-workspace}:/workspace
-      - ./${HACKATHON_SKILLS_DIR:-skills}:/app/data/skills/external
-      - ./${HACKATHON_MEMORY_DIR:-memory}:/app/data/memory
+      - ./${HACKATHON_SKILLS_DIR:-skills}:/data/skills/external
+      - ./${HACKATHON_MEMORY_DIR:-memory}:/data/memory
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
