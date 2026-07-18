@@ -1,7 +1,7 @@
 ---
 name: onboarding_access
 description: Готовит для нового сотрудника обоснованный список доступов, проводит версионное согласование с руководителем и после подтверждения отправляет заявку по обезличенному ID.
-version: 0.1.0
+version: 0.1.4
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 1 «Доступы» или руководитель явно просит подготовить заявку на доступы для обезличенного employee_id.
 ---
@@ -12,45 +12,127 @@ when_to_use: Главный onboarding-оркестратор делегируе
 
 Работай только над списком доступов и письмом руководителю. Не выдавай доступы и не запускай другие этапы.
 
-Вход: `onboarding_id`, `draft_version`, `approved_version`, `employee_id`, `manager_id`, `role`, `team`, `additional_context`, `manager_feedback`, `operation_ids`.
+Вход: `onboarding_id`, `draft_version`, `approved_version`, `employee_id`, `manager_id`, `role`, `team`, `additional_context`, `manager_feedback`, `operation_records`, `execute_authorized`.
+
+Корпоративный формат заявки задан HTML-формой Сбер Аналитики
+(`Форма заявки на предоставление прав.html`): согласование руководителем →
+далее заявитель направляет согласованный текст в `itsupport@sberanalytics.ru`.
+В этом skill автоматизируем только письмо руководителю в том же текстовом
+формате; шаг в техподдержку — вне MCP, пока не сказано иное.
+
+## Идемпотентность
+
+Алгоритм ниже самодостаточен для этого skill pack; не требуй внешних файлов правил.
+
+1. Action marker: `m_` + первые 16 hex-символов lowercase SHA-256 от canonical UTF-8 JSON с отсортированными ключами и без payload:
+
+```json
+{
+  "action": "access-mail",
+  "approved_version": "<approved_version>",
+  "onboarding_id": "<onboarding_id>",
+  "stage": 1,
+  "target_ids": ["<manager_id>"]
+}
+```
+
+Включи marker в тему письма до вычисления payload hash.
+
+2. `payload_sha256` = lowercase SHA-256 canonical UTF-8 полного утвержденного payload: `subject`, `text`, список доступов в стабильном порядке.
+
+3. Operation key: `op_` + lowercase SHA-256 от canonical UTF-8 JSON с отсортированными ключами:
+
+```json
+{
+  "action": "access-mail",
+  "approved_version": "<approved_version>",
+  "onboarding_id": "<onboarding_id>",
+  "payload_sha256": "<payload_sha256>",
+  "stage": 1,
+  "target_ids": ["<manager_id>"]
+}
+```
+
+Строки не обрезай и не нормализуй кроме UTF-8; `target_ids` сортируй.
+
+## Preflight интеграций
+
+1. Проверь наличие и schemas:
+   - Confluence: `mcp_confluence__confluence_verify`, `mcp_confluence__confluence_search`, `mcp_confluence__confluence_get_page`;
+   - Wiki fallback: `mcp_wiki__wiki_list_pages`, `mcp_wiki__wiki_search`, `mcp_wiki__wiki_get_page`;
+   - mail: `mcp_yandex_mail__yandex_mail_verify`, `mcp_yandex_mail__yandex_mail_list_folders`, `mcp_yandex_mail__yandex_mail_list_messages`, `mcp_yandex_mail__yandex_mail_get_message`, `mcp_yandex_mail__yandex_mail_send`.
+2. Вызови `mcp_yandex_mail__yandex_mail_verify()` и read-only verify выбранного источника: `mcp_confluence__confluence_verify()` либо `mcp_wiki__wiki_list_pages()`.
+3. Если mail недоступен, schema несовместима или оба источника не дали валидного ответа, верни `BLOCKED` и не формируй неподтвержденную заявку.
 
 ## Источник
 
-1. Основной: `mcp_confluence__confluence_search` → `mcp_confluence__confluence_get_page`.
-2. Demo fallback: `mcp_wiki__wiki_get_page(slug="access-policy")` или `mcp_wiki__wiki_search`.
+1. Основной: `mcp_confluence__confluence_search(query=<role, team и access policy>)` → `mcp_confluence__confluence_get_page(page_id=<id из search>)`.
+2. Demo fallback: `mcp_wiki__wiki_get_page(slug="access-policy")` или `mcp_wiki__wiki_search(query=<role и team>, limit=5)`.
 3. Выбери один источник и укажи его.
-4. Не добавляй доступ «на всякий случай». Каждый пункт должен следовать из политики, роли, команды или явного контекста.
+4. Каноническая политика — страница «Политика доступов» / `access-policy`: общие доступы (SSO, почта, **VPN**, Jira, Wiki, мессенджер), пакет по роли (для backend — GitLab, CI/CD, K8s stage, PostgreSQL, Kafka, Grafana, Sentry, Vault) и смежные системы (**CRM**, **1С**, TestRail, Metabase, Figma, HR, СЭД) только при соответствии роли/явному запросу.
+5. Не добавляй доступ «на всякий случай». Каждый пункт должен следовать из политики, роли, команды или явного контекста. Для backend по умолчанию **не** включай CRM и 1С без явного запроса руководителя.
+6. В каждом пункте заявки указывай **описание** системы/доступа из политики (колонка «Описание»), не только имя.
 
 Если источник недоступен или роль не покрыта политикой, верни `BLOCKED` или `NEEDS_DATA`; не придумывай список.
 
 ## Черновик
 
-Сформируй:
+Эталон корпоративной заявки — HTML-форма «Заявка на доступ»
+(`Форма заявки на предоставление прав.html`): тема письма
+`Запрос на выдачу прав.`, тело — как в `getRequestText()` формы.
+
+В пайплайне онбординга **не подставляй ФИО и email в черновике для HITL**:
+вместо «кому» и блока «Данные пользователя» пиши opaque id (`usr_employee`).
+Перед SMTP mail MCP сам разворачивает известные id в реальные логины/email
+в теме и теле письма; получатель видит адрес, агент — по-прежнему только id.
+Письмо уходит руководителю через mail MCP (`to=[manager_id]`), не через `mailto:`.
+
+Ресурс в форме — путь из трёх уровней: `Категория — Подсистема — Роль/право`
+(как в меню формы). Маппь пункты политики доступов на такие пути; если
+точного пути в каталоге формы нет — укажи ближайший путь и поясни в
+комментарии. Несколько ресурсов — нумерованным списком.
+
+Сформируй тело письма:
 
 ```text
-Заявка на доступы [onboarding:<employee_id>]
-Сотрудник: <employee_id>
+Добрый день.
+
+Прошу согласовать предоставление прав/доступ (кому): <employee_id>
+-------------------------------------------------------------------------
+Ресурс:
+1) <Категория> — <Подсистема> — <Роль/право>
+2) …
+-------------------------------------------------------------------------
+Данные пользователя:
+Сотрудник (id): <employee_id>
 Роль: <role>
 Команда: <team>
-
-Запрашиваемые доступы:
-1. <система / уровень> — <обоснование из политики>
-
-Ограничения:
-<если есть>
+Организация: ТОТ
+-------------------------------------------------------------------------
+Комментарий: Онбординг [onboarding:<employee_id>]. <кратко: пакет из политики + ограничения (напр. prod на ИС не запрашиваем)>.
+-------------------------------------------------------------------------
+P.S. После согласования руководителем направление в техподдержку: itsupport@sberanalytics.ru (в демо-пайплайне этот шаг не автоматизировать, если нет отдельного tool).
 ```
 
-Покажи полный список и письмо. Планируемое внешнее действие одно: отправить текущую версию через `mcp_yandex_mail__yandex_mail_send` с `to=[manager_id]`.
+Тема письма (для send): `Запрос на выдачу прав. [onboarding:<employee_id>] <action_marker>` —
+сохрани корпоративную формулировку и добавь маркеры идемпотентности/поиска дублей.
+
+Покажи полный список путей и готовое тело письма. Планируемое внешнее действие одно:
+`mcp_yandex_mail__yandex_mail_send(to=[manager_id], subject=<тема>, text=<тело выше>)`.
+HTML-форму и вложения не отправляй (mail MCP — plain text).
 
 ## Согласование и исполнение
 
 - Если `approved_version` не совпадает с `draft_version`, не отправляй письмо; верни `AWAITING_APPROVAL`.
 - Примени `manager_feedback`, пересобери весь вариант и сохрани новую версию.
-- Если версии совпадают, вызови mail tool ровно один раз после проверки operation key.
+- Сформируй action marker и operation key по разделу «Идемпотентность» этого файла; добавь action marker в тему утвержденного письма.
+- При совпадении версий сначала верни `PREPARED`, полный payload, key/hash и не вызывай send. Только в следующем запуске с подтвержденной записью `PENDING`, совпадающими key/hash/version и `execute_authorized=true` вызови `mcp_yandex_mail__yandex_mail_send(to=[manager_id], subject=<тема утвержденной версии>, text=<plain-text тело утвержденной версии>)`.
 - Mail MCP отправляет plain text без вложений. Не утверждай, что файл приложен.
-- Тема должна содержать `onboarding:<employee_id>` для поиска дублей.
-- Сохрани только `messageId`/безопасный ID и статус.
-
+- Тема должна содержать `onboarding:<employee_id>` (и action marker) для поиска дублей; базовый текст темы — `Запрос на выдачу прав.` как в корпоративной форме.
+- Успех подтвержден только если ответ содержит непустой `message_id`, `accepted` содержит `manager_id`, а `rejected` пуст. Иначе сохрани частичный/неопределенный результат и верни `BLOCKED`.
+- После timeout или неоднозначного ответа вызови `mcp_yandex_mail__yandex_mail_list_folders()`, однозначно определи Sent path, затем `mcp_yandex_mail__yandex_mail_list_messages(folder=<sent path>, since=<attempt_started_at>, limit=100)`. Сопоставь action marker, `manager_id` и время; при необходимости сравни точное тело через `mcp_yandex_mail__yandex_mail_get_message(folder=<sent path>, uid=<найденный uid>)`. Если Sent path или результат неоднозначен, не повторяй send и запроси ручную проверку.
+- Сохрани только безопасный `message_id`, operation key и статус.
+- Не вставляй в письмо ФИО или личные email; организация в демо — `ТОТ`, если иное не задано во входе.
 ## Выход
 
 Верни общий контракт этапа:

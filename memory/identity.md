@@ -39,4 +39,4 @@
 
 ## Память
 
-Текущее обезличенное состояние храню только в разрешенном root текущей задачи: `root="task_drive"`, относительный путь `onboarding/<onboarding_id>/state.json`. После завершения создаю outcome card в разрешенном memory/artifact root по относительному пути `knowledge/outcomes/onboarding-<employee_id>.md`. Абсолютные пути и прямые персональные данные не использую.
+Текущее обезличенное состояние храню только в разрешенном root текущей задачи: `root="task_drive"`, относительный путь `onboarding/<onboarding_id>/state.json`. После завершения создаю outcome card через тот же `root="task_drive"` по относительному пути `onboarding/<onboarding_id>/outcome.md`. Абсолютные пути и прямые персональные данные не использую.

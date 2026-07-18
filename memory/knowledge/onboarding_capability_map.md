@@ -37,6 +37,14 @@ Capability `{mail_send_by_id}`:
 
 - `mcp_yandex_mail__yandex_mail_send(to, subject, text, cc?, bcc?)`.
 
+Capability `{mail_reconcile}`:
+
+- `mcp_yandex_mail__yandex_mail_list_folders()`;
+- `mcp_yandex_mail__yandex_mail_list_messages(folder?, limit?, since?, unseen_only?)`;
+- `mcp_yandex_mail__yandex_mail_get_message(folder?, uid)`.
+
+Для reconciliation выбери Sent folder из `list_folders`, ограничь поиск `since` временем попытки, сопоставь уникальный action marker и адресата, затем при необходимости сравни точное тело через `get_message`. Отсутствие письма не разрешает автоматический повтор после неоднозначного SMTP-результата.
+
 Ограничение: mail MCP отправляет plain text и не поддерживает вложения.
 
 ## Этап 2 — бадди
@@ -79,7 +87,7 @@ Capability `{calendar_create_by_id}`:
 
 - `mcp_yandex_calendar__yandex_calendar_create_event(title, start, duration_minutes|end, timezone?, attendees?, description?, location?, reminder_minutes?, client_token?)`.
 
-`attendees` принимает opaque ID при включенной `CALENDAR_OBFUSCATION`. Update не меняет attendees; для изменения состава нужна отмена и новое событие после отдельного подтверждения.
+`attendees` принимает opaque ID при включенной `CALENDAR_OBFUSCATION`. `yandex_calendar_update_event` поддерживает полную замену `attendees` (opaque IDs).
 
 ## Этап 5 — курсы
 
@@ -90,9 +98,20 @@ Capability `{course_recommend}`:
 - нормализация роли: `mcp_stepik__stepik_match_role(role)`;
 - диагностика каталога: `mcp_stepik__stepik_list_roles()`.
 
-Capability `{course_enroll_by_id}` отсутствует. Не утверждай, что сотрудник записан на курс. В MVP утвержденный список отправляется сотруднику письмом.
+Capability `{course_enroll_by_id}`:
+
+- `mcp_stepik__stepik_enroll` — локальный mock (`enrollments.json`), не Stepik.org API;
+- после approve фиксируй `enrollment_id`, затем письмо сотруднику;
+- не утверждай регистрацию на stepik.org.
 
 ## Этап 6 — испытательный срок
+
+Capability `{probation_goals_xlsx}`:
+
+- `mcp_jira__jira_build_probation_goals_xlsx(hire_id, role, start_date, team, manager_id, include_base64=true)`;
+- источник формы: корпоративный шаблон «Задачи на ИС (обновление).xlsx» (`templates/probation_goals.xlsx`);
+- содержание целей: `templates/<role>.yaml` → `goals[]` (SMART, вес, срок);
+- в чат — только `preview` (таблица); `content_base64` — для артефакта и вложения.
 
 Capability `{jira_plan_preview}`:
 
@@ -114,7 +133,7 @@ Capability `{jira_plan_rollback}`:
 - `mcp_jira__jira_get_project(project_key)`;
 - `mcp_jira__jira_search(jql)`.
 
-Отправка плана — `{mail_send_by_id}`. Ограничение: файл нельзя приложить через текущий mail MCP; допустима отправка plain-text плана и создание отдельного локального артефакта.
+Отправка плана — `{mail_send_by_id}` с `attachments: [{filename, content_base64, content_type}]` (до 3 файлов, ~5 MiB). Без поддержки `attachments` у send этап `BLOCKED`. Локально сохрани также `onboarding/<id>/Цели_ИС.xlsx` и `probation-plan.md`.
 
 ## Отсутствующая capability
 
