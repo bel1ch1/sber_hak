@@ -193,7 +193,8 @@ cd mcp/your-server
 ### Tools
 - `mcp_jira__jira_get_project`, `mcp_jira__jira_search` (read)
 - `mcp_jira__jira_create_issue`, `mcp_jira__jira_bulk_create`
-- `mcp_jira__jira_create_onboarding_plan` — Epic + ~20 задач из шаблона роли, `dry_run→approve→commit`, идемпотентность по label `onboarding:<hire_id>`
+- `mcp_jira__jira_build_probation_goals_xlsx` — заполняет HR-форму «Цели на ИС» (Excel), возвращает preview + base64
+- `mcp_jira__jira_create_onboarding_plan` — Epic + SMART-цели из шаблона роли, `dry_run→approve→commit`, идемпотентность по label `onboarding:<hire_id>`
 - `mcp_jira__jira_rollback_plan` — откат по label
 
 ### Регистрация в Ouroboros

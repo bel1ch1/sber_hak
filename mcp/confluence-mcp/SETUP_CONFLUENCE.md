@@ -29,12 +29,15 @@ Confluence включается **бесплатно** на твоём суще�
 - «Каталог обучающих курсов»
 
 **Вариант Б — авто из наших мок-страниц:** пропиши ключ space в `.env` и запусти
-сидер — он зальёт все 7 готовых страниц о компании через API:
+сидер — он создаст недостающие страницы и **обновит** существующие с тем же title:
 ```bash
-cd hackathon/confluence_mcp
-../.venv/bin/python seed_confluence.py
+cd mcp/confluence-mcp
+python seed_confluence.py
 ```
-(откатить: `../.venv/bin/python seed_confluence.py --wipe`)
+(только создать новые, не трогать старые: `python seed_confluence.py --create-only`)  
+(откатить: `python seed_confluence.py --wipe`)
+
+В MCP также есть `confluence_update_page` для точечного обновления страницы.
 
 ## Шаг 4. Прописать ключ space в .env
 Открой `hackathon/confluence_mcp/.env` и впиши:

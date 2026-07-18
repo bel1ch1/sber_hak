@@ -710,6 +710,8 @@ export interface UpdateEventPatch {
   description?: string
   location?: string
   reminder_minutes?: number | null
+  /** Full replacement of attendee emails when set (including empty array). */
+  attendees?: string[]
 }
 
 export interface UpdateEventInput {
@@ -827,6 +829,8 @@ export async function updateEvent(deps: UpdateEventDeps): Promise<UpdateEventRes
   const { start, end, timezone } = resolveUpdateTimes(parsed.start, parsed.end, parsed.timezone, effectivePatch)
 
   const newSeq = parsed.sequence + 1
+  const attendees =
+    deps.input.patch.attendees !== undefined ? deps.input.patch.attendees : parsed.attendees
   const ics = generateEventIcs({
     uid: parsed.uid,
     sequence: newSeq,
@@ -835,7 +839,7 @@ export async function updateEvent(deps: UpdateEventDeps): Promise<UpdateEventRes
     start,
     end,
     timezone,
-    attendees: parsed.attendees,
+    attendees,
     description: deps.input.patch.description ?? parsed.description,
     location: deps.input.patch.location ?? parsed.location,
     // undefined = preserve existing VALARM; null = explicit clear; number = replace.

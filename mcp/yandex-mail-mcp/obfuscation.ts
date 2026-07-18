@@ -29,6 +29,11 @@ export interface Obfuscator {
   registerSelf(login: string): void
   /** Resolve agent-supplied IDs to real emails. Order preserved for resolved ones. */
   resolveRecipients(ids: string[]): { emails: string[]; unknown: string[] }
+  /**
+   * Expand opaque ids in free text (subject/body) to real emails/logins before SMTP send.
+   * Agent keeps writing ids; recipients see addresses. Unknown tokens left unchanged.
+   */
+  expandIdsInText(text: string): string
   /** Mask a single "Name <email>" / "email" address into its ID. */
   maskAddress(addr: string): string
   maskAddresses(addrs: string[]): string[]
@@ -130,6 +135,34 @@ class DirectoryObfuscator implements Obfuscator {
     }
     return { emails, unknown }
   }
+
+  expandIdsInText(text: string): string {
+    if (!text) return text
+    // Longer ids first so usr_employee is not partially shadowed by a shorter prefix id.
+    const pairs: Array<{ id: string; login: string }> = []
+    for (const e of this.dir.entries) {
+      pairs.push({ id: e.id, login: e.email })
+    }
+    for (const [token, email] of this.extToEmail) {
+      pairs.push({ id: token, login: email })
+    }
+    if (this.selfEmail) {
+      pairs.push({ id: SELF_ID, login: this.selfEmail })
+    }
+    pairs.sort((a, b) => b.id.length - a.id.length)
+
+    let out = text
+    for (const { id, login } of pairs) {
+      // Word-ish boundary: id must not be glued to [A-Za-z0-9_].
+      const re = new RegExp(`(?<![A-Za-z0-9_])${escapeRegExp(id)}(?![A-Za-z0-9_])`, "g")
+      out = out.replace(re, login)
+    }
+    return out
+  }
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 /** Pass-through obfuscator for when MAIL_OBFUSCATION is disabled. */
@@ -138,6 +171,9 @@ class PassthroughObfuscator implements Obfuscator {
   registerSelf(): void {}
   resolveRecipients(ids: string[]): { emails: string[]; unknown: string[] } {
     return { emails: ids, unknown: [] }
+  }
+  expandIdsInText(text: string): string {
+    return text
   }
   maskAddress(addr: string): string {
     return addr

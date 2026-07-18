@@ -115,6 +115,16 @@ def confluence_create_page(space_key: str, title: str, body_markdown: str, paren
         return {"ok": False, "error": str(e)}
 
 
+@mcp.tool()
+def confluence_update_page(page_id: str, title: str, body_markdown: str) -> dict:
+    """Update an existing Confluence page body (and title) from markdown.
+    Write operation. Bumps page version. Use after confluence_list_pages / search to get page_id."""
+    try:
+        return {"ok": True, "updated": client.update_page(page_id, title, body_markdown)}
+    except ConfluenceError as e:
+        return {"ok": False, "error": str(e)}
+
+
 if __name__ == "__main__":
     print(f"[confluence-mcp] host={HOST} port={PORT} space={DEFAULT_SPACE or '(any)'} "
           f"-> http://{HOST}:{PORT}/mcp")

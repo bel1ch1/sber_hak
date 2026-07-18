@@ -361,6 +361,7 @@ Max диапазон: **366 дней**. Recurring master приходит оди
     description?: string,
     location?: string,
     reminder_minutes?: number | null,  // null = очистить, number = заменить, undefined = preserve
+    attendees?: string[],              // полная замена списка; [] = убрать всех; omit = preserve
   }
 }
 → { uid, href, etag, sequence, invite_status, warnings }
@@ -372,7 +373,7 @@ Max диапазон: **366 дней**. Recurring master приходит оди
 - оба → оба заменяются
 - ни одного → time не меняется
 
-**Что нельзя менять через update:** `attendees`. Для смены — отмени и создай заново.
+**Что можно менять через update:** `title`, время, описание, место, напоминание, **`attendees`** (полная замена списка; пустой массив — убрать всех; omit — сохранить). Recurring — только через UI Яндекса.
 
 **Recurring events** (events с RRULE/RECURRENCE-ID/EXDATE/RDATE) — отвергаются с `RecurringEventNotSupported`. Редактировать через UI Яндекса.
 

@@ -58,7 +58,8 @@ Settings → Advanced → MCP:
 | `jira_get_project` | read | auto | метаданные проекта, типы задач |
 | `jira_search` | read | auto | JQL-поиск (в т.ч. проверка дублей) |
 | `jira_create_issue` | write | draft→approve | одна задача |
-| `jira_create_onboarding_plan` | write | **dry_run → approve → commit** | Epic + ~20 задач из шаблона с дедлайнами |
+| `jira_build_probation_goals_xlsx` | read | auto | HR Excel «Цели на ИС» + preview (таблица) + base64 |
+| `jira_create_onboarding_plan` | write | **dry_run → approve → commit** | Epic + SMART-цели из шаблона роли |
 | `jira_rollback_plan` | write | approve | удалить всё по онбордингу (откат демо) |
 
 ## Human-in-the-loop и безопасность

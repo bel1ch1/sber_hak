@@ -24,6 +24,7 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 import plan as planlib
+import excel_plan as excelplan
 from accounts import accounts_path, load_accounts
 from jira_client import JiraError, MockJiraClient, RealJiraClient
 
@@ -127,18 +128,53 @@ def jira_create_issue(project_key: str, summary: str, description: str = "",
 
 
 @mcp.tool()
+def jira_build_probation_goals_xlsx(
+    hire_id: str,
+    role: str = "backend",
+    start_date: str = "",
+    team: str = "",
+    manager_id: str = "",
+    include_base64: bool = True,
+) -> dict:
+    """Fill the corporate HR form «Цели на испытательный срок» (Excel) from the
+    role goals template (based on «Задачи на ИС (обновление).xlsx»).
+
+    Returns structured ``preview`` (goals, weights, due dates, checkpoints) for
+    showing a table/text draft in chat, plus ``filename`` / ``content_base64``
+    for saving the workbook and attaching it to mail via yandex_mail_send.
+
+    PRIVACY: hire_id and manager_id are opaque ids written into the sheet —
+    never put real FIO/email. Max 10 SMART goals; weights should sum to ~1.0.
+    start_date is YYYY-MM-DD (defaults to today)."""
+    start_date = start_date or _dt.date.today().isoformat()
+    try:
+        return excelplan.build_goals_workbook_payload(
+            role=role,
+            hire_id=hire_id,
+            start_date=start_date,
+            team=team,
+            manager_id=manager_id,
+            include_base64=include_base64,
+        )
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@mcp.tool()
 def jira_create_onboarding_plan(project_key: str, hire_id: str, role: str = "backend",
                                 start_date: str = "", team: str = "",
                                 assignee_id: str = "",
                                 dry_run: bool = True) -> dict:
-    """Build a new hire's probation plan: one Epic + ~20 tasks with due dates
-    spread across the probation period, from the role template.
+    """Build a new hire's probation plan in Jira: one Epic + SMART goals as
+    tasks with due dates from the role template (same goals as the Excel form).
 
     Human-in-the-loop: with dry_run=True (default) it returns a PREVIEW and
     writes nothing; call again with dry_run=False to actually create the issues.
     Idempotent: tasks are labelled onboarding:<hire_id>; if a plan already
     exists it is returned instead of duplicated. start_date is YYYY-MM-DD
     (defaults to today).
+
+    For the HR Excel workbook use jira_build_probation_goals_xlsx separately.
 
     PRIVACY: assignee_id is an opaque id from accounts.csv (e.g. usr_employee /
     usr_jira_assignee). MCP resolves it to a Jira accountId server-side; never
@@ -166,7 +202,8 @@ def jira_create_onboarding_plan(project_key: str, hire_id: str, role: str = "bac
     }
     if dry_run:
         return {"ok": True, "mode": MODE, "dry_run": True, "preview": preview,
-                "note": "Ничего не создано. Вызови повторно с dry_run=false для записи."}
+                "note": "Ничего не создано. Вызови повторно с dry_run=false для записи. "
+                        "Excel-форму целей собери через jira_build_probation_goals_xlsx."}
 
     # Idempotency: never duplicate an existing plan.
     try:

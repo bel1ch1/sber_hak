@@ -88,6 +88,30 @@ describe("resolveRecipients (directory)", () => {
   })
 })
 
+describe("expandIdsInText", () => {
+  it("replaces known ids in body with emails (logins)", () => {
+    const obf = createObfuscator(fixtureDir())
+    const out = obf.expandIdsInText(
+      "Прошу согласовать (кому): usr_1\nСотрудник (id): usr_2\n[onboarding:usr_1]",
+    )
+    assert.equal(
+      out,
+      "Прошу согласовать (кому): ivan@yandex.ru\nСотрудник (id): maria@yandex.ru\n[onboarding:ivan@yandex.ru]",
+    )
+  })
+
+  it("leaves unknown tokens unchanged", () => {
+    const obf = createObfuscator(fixtureDir())
+    assert.equal(obf.expandIdsInText("user usr_999 ok"), "user usr_999 ok")
+  })
+
+  it("expands self after registerSelf", () => {
+    const obf = createObfuscator(fixtureDir())
+    obf.registerSelf("me@yandex.ru")
+    assert.equal(obf.expandIdsInText("from self mailbox"), "from me@yandex.ru mailbox")
+  })
+})
+
 describe("round-trip through send", () => {
   it("masks accepted addresses back to the ids the agent used", () => {
     const obf = createObfuscator(fixtureDir())

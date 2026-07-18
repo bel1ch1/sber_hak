@@ -1,16 +1,17 @@
-"""(Опционально) Залить наши 7 мок-страниц в Confluence через API.
+"""Залить мок-страницы wiki-mock в Confluence через API.
 
-Читает hackathon/wiki_mock_mcp/pages/*.md и создаёт страницы в space
-CONFLUENCE_SPACE_KEY. Идемпотентно: страница с таким же title пропускается.
-Запуск:  ../.venv/bin/python seed_confluence.py
-Очистка: ../.venv/bin/python seed_confluence.py --wipe   (удалит созданные seed-страницы)
+Читает mcp/wiki-mock-mcp/pages/*.md и создаёт/обновляет страницы в space
+CONFLUENCE_SPACE_KEY. По умолчанию обновляет существующие с тем же title.
+Запуск:  python seed_confluence.py
+         python seed_confluence.py --create-only   # не трогать существующие
+Очистка: python seed_confluence.py --wipe
 """
 import os
 import pathlib
 import sys
 
 HERE = pathlib.Path(__file__).parent
-PAGES = HERE.parent / "wiki_mock_mcp" / "pages"
+PAGES = HERE.parent / "wiki-mock-mcp" / "pages"
 
 
 def load_env(path: pathlib.Path) -> None:
@@ -38,32 +39,60 @@ def parse(md: str):
 
 def main() -> int:
     load_env(HERE / ".env")
+    load_env(HERE.parent / "jira-mcp" / ".env")
+    # Fallback: reuse Jira Atlassian creds if Confluence-specific unset
+    if not os.environ.get("CONFLUENCE_BASE_URL") and os.environ.get("JIRA_BASE_URL"):
+        jira = os.environ["JIRA_BASE_URL"].rstrip("/")
+        os.environ["CONFLUENCE_BASE_URL"] = jira if jira.endswith("/wiki") else f"{jira}/wiki"
+    if not os.environ.get("CONFLUENCE_EMAIL") and os.environ.get("JIRA_EMAIL"):
+        os.environ["CONFLUENCE_EMAIL"] = os.environ["JIRA_EMAIL"]
+    if not os.environ.get("CONFLUENCE_API_TOKEN") and os.environ.get("JIRA_API_TOKEN"):
+        os.environ["CONFLUENCE_API_TOKEN"] = os.environ["JIRA_API_TOKEN"]
+
     from confluence_client import ConfluenceClient, ConfluenceError
-    space = os.environ.get("CONFLUENCE_SPACE_KEY", "")
+
+    space = os.environ.get("CONFLUENCE_SPACE_KEY", "") or os.environ.get("JIRA_PROJECT_KEY", "")
     if not space:
-        print("❌ Задай CONFLUENCE_SPACE_KEY в .env"); return 1
-    c = ConfluenceClient(os.environ["CONFLUENCE_BASE_URL"], os.environ["CONFLUENCE_EMAIL"],
-                         os.environ["CONFLUENCE_API_TOKEN"])
+        print("Задай CONFLUENCE_SPACE_KEY (или JIRA_PROJECT_KEY) в .env")
+        return 1
+    if not PAGES.is_dir():
+        print(f"Нет каталога страниц: {PAGES}")
+        return 1
+
+    base = os.environ.get("CONFLUENCE_BASE_URL") or ""
+    email = os.environ.get("CONFLUENCE_EMAIL") or ""
+    token = os.environ.get("CONFLUENCE_API_TOKEN") or ""
+    c = ConfluenceClient(base, email, token)
     existing = {p["title"]: p["id"] for p in c.list_pages(space)}
+    create_only = "--create-only" in sys.argv
 
     if "--wipe" in sys.argv:
-        seeded_titles = [parse(f.read_text(encoding="utf-8"))[0].get("title") or f.stem
-                         for f in sorted(PAGES.glob("*.md"))]
+        seeded_titles = [
+            parse(f.read_text(encoding="utf-8"))[0].get("title") or f.stem
+            for f in sorted(PAGES.glob("*.md"))
+        ]
         for title in seeded_titles:
             if title in existing:
-                c.delete_page(existing[title]); print(f"  🗑  удалено: {title}")
-        print("wipe готово"); return 0
+                c.delete_page(existing[title])
+                print(f"  удалено: {title}")
+        print("wipe готово")
+        return 0
 
     for f in sorted(PAGES.glob("*.md")):
         meta, body = parse(f.read_text(encoding="utf-8"))
         title = meta.get("title") or f.stem
-        if title in existing:
-            print(f"  ⏭  уже есть: {title}"); continue
         try:
-            r = c.create_page(space, title, body)
-            print(f"  ✅ создано: {title}  -> {r['url']}")
+            if title in existing:
+                if create_only:
+                    print(f"  пропуск (уже есть): {title}")
+                    continue
+                r = c.update_page(existing[title], title, body)
+                print(f"  обновлено: {title}  -> {r['url']}")
+            else:
+                r = c.create_page(space, title, body)
+                print(f"  создано: {title}  -> {r['url']}")
         except ConfluenceError as e:
-            print(f"  ❌ {title}: {e}")
+            print(f"  ошибка {title}: {e}")
     return 0
 
 

@@ -66,18 +66,53 @@ export interface MailMessage {
   html?: string
 }
 
+export interface MailAttachmentInput {
+  filename: string
+  content_base64: string
+  content_type?: string
+}
+
 export interface SendMailInput {
   to: string[]
   subject: string
   text: string
   cc?: string[]
   bcc?: string[]
+  attachments?: MailAttachmentInput[]
 }
 
 export interface SendMailResult {
   message_id: string
   accepted: string[]
   rejected: string[]
+  attachment_names?: string[]
+}
+
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
+
+function decodeAttachments(attachments: MailAttachmentInput[] | undefined): {
+  filename: string
+  content: Buffer
+  contentType?: string
+}[] {
+  if (!attachments?.length) return []
+  return attachments.map((a) => {
+    let content: Buffer
+    try {
+      content = Buffer.from(a.content_base64, "base64")
+    } catch {
+      throw new Error(`InvalidAttachment: ${a.filename} is not valid base64`)
+    }
+    if (!content.length) throw new Error(`InvalidAttachment: ${a.filename} decoded empty`)
+    if (content.length > MAX_ATTACHMENT_BYTES) {
+      throw new Error(`AttachmentTooLarge: ${a.filename} exceeds 5 MiB`)
+    }
+    return {
+      filename: a.filename,
+      content,
+      contentType: a.content_type,
+    }
+  })
 }
 
 function formatAddresses(addrs: { address?: string; name?: string }[] | undefined): string[] {
@@ -187,6 +222,8 @@ export async function sendMail(creds: MailCredsOk, input: SendMailInput): Promis
     auth: smtpAuth(creds),
   })
 
+  const decoded = decodeAttachments(input.attachments)
+
   const info = await transporter.sendMail({
     from: creds.login,
     to: input.to.join(", "),
@@ -194,11 +231,17 @@ export async function sendMail(creds: MailCredsOk, input: SendMailInput): Promis
     bcc: input.bcc?.length ? input.bcc.join(", ") : undefined,
     subject: input.subject,
     text: input.text,
+    attachments: decoded.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      contentType: a.contentType,
+    })),
   })
 
   return {
     message_id: info.messageId ?? "",
     accepted: (info.accepted as string[]) ?? [],
     rejected: (info.rejected as string[]) ?? [],
+    attachment_names: decoded.map((a) => a.filename),
   }
 }

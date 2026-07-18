@@ -23,7 +23,8 @@ COPY --chown=node:node stepik_courses_by_role.xlsx /data/stepik_courses_by_role.
 ENV NODE_ENV=production \
     MCP_TRANSPORT=http \
     MCP_HTTP_PORT=3000 \
-    STEPIK_CATALOG_PATH=/data/stepik_courses_by_role.xlsx
+    STEPIK_CATALOG_PATH=/data/stepik_courses_by_role.xlsx \
+    STEPIK_ENROLLMENTS_PATH=/tmp/stepik-enrollments.json
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
   CMD node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

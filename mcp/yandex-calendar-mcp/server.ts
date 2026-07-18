@@ -208,9 +208,10 @@ export function buildServer(): McpServer {
   server.tool(
     "yandex_calendar_update_event",
     "Updates an event in the user's Yandex Calendar. Pass uid, href, etag (from create or list). " +
-      "Patch fields: title, start, end, timezone, description, location, reminder_minutes. " +
+      "Patch fields: title, start, end, timezone, description, location, reminder_minutes, attendees. " +
       "TIME RULES (§4.4.1): start without end preserves duration; end without start changes duration; " +
-      "both replaces; neither no-op. ATTENDEES CANNOT be changed via this tool — use cancel + create instead. " +
+      "both replaces; neither no-op. ATTENDEES: optional full replacement list (opaque ids when " +
+      "CALENDAR_OBFUSCATION=true); omit to preserve; empty array clears all invitees. " +
       "RECURRING events are rejected with RecurringEventNotSupported. " +
       "Does NOT promise external attendee availability — only writes to the user's own calendar.",
     {
@@ -225,12 +226,19 @@ export function buildServer(): McpServer {
         description: z.string().max(4000).optional(),
         location: z.string().max(500).optional(),
         reminder_minutes: z.number().int().min(0).max(7 * 24 * 60).nullable().optional(),
+        attendees: z.array(z.string().min(1).max(64)).max(50).optional(),
       }).strict(),
     },
     async (args) => {
       try {
         const ctx = await getYandexContext()
-        const result = await updateEvent({ ...ctx, input: args })
+        let patch = args.patch
+        if (args.patch.attendees !== undefined) {
+          const resolved = await resolveAttendees(args.patch.attendees)
+          if (resolved.error) return asText(resolved.error)
+          patch = { ...args.patch, attendees: resolved.emails ?? [] }
+        }
+        const result = await updateEvent({ ...ctx, input: { ...args, patch } })
         return asText(JSON.stringify(result, null, 2))
       } catch (e) {
         return asText(e instanceof Error ? e.message : String(e))
