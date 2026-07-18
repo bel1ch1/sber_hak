@@ -1,6 +1,7 @@
 # Knowledge Base Index
 
-- **onboarding_pipeline_rules**: Контракт общего пайплайна онбординга — порядок/зависимости шагов, глобальная политика автономии (auto / draft→approve), данные и секреты, идемпотентность onboarding:<hire_id> и откат, обработка недоступности, входной контракт триггера, формат карточки исхода
+- **onboarding_pipeline_rules**: Актуальный MVP-контракт — подтверждаемый триггер, шесть последовательных этапов, version-bound HITL, отдельный субагент на этап, employee_id, приватность, состояние и outcome card
+- **onboarding_capability_map**: Сопоставление этапов онбординга с live MCP tools, точные аргументы, fallback источников и известные отсутствующие capability
 - **git_checkout_ambiguity**: commit_reviewed fails with 'git checkout ouroboros' when a directory named ouroboros/ exists alongside a tracking branch
 - **improvement-backlog**: This topic stores concrete, evidence-backed improvement items discovered during task execution.
 - **patterns**: | Error class | Count | Root cause | Structural fix | Status |

@@ -29,6 +29,14 @@ import {
   isoToUtcMs,
 } from "./yandex-calendar-client.ts"
 import { FromToRangeInput } from "./yandex-calendar-schemas.ts"
+import {
+  accountsCsvPath,
+  loadAccounts,
+  maskEmail,
+  obfuscationEnabled,
+  resolveAttendeeIds,
+  type AccountDirectory,
+} from "./accounts.ts"
 
 // ===== shared helpers =====
 
@@ -48,6 +56,40 @@ const isMain = Boolean(process.argv[1] && fileURLToPath(import.meta.url) === pat
 // ----- Yandex Calendar module state -----
 const YANDEX_CACHE = new IdempotencyCache(10 * 60 * 1000)
 let YANDEX_DISCOVERED_CALENDAR_URL: string | null = null
+let ACCOUNTS_PROMISE: Promise<AccountDirectory> | null = null
+
+async function getAccounts(): Promise<AccountDirectory> {
+  if (!ACCOUNTS_PROMISE) {
+    ACCOUNTS_PROMISE = loadAccounts(accountsCsvPath(PACKAGE_DIR))
+  }
+  return ACCOUNTS_PROMISE
+}
+
+async function resolveAttendees(raw?: string[]): Promise<{ emails?: string[]; error?: string }> {
+  if (!raw?.length) return {}
+  if (!obfuscationEnabled()) {
+    // Legacy: allow emails directly when obfuscation off
+    return { emails: raw }
+  }
+  const dir = await getAccounts()
+  const { emails, unknown } = resolveAttendeeIds(dir, raw)
+  if (unknown.length) {
+    return {
+      error:
+        `UnknownAttendeeId: ${unknown.join(", ")}. ` +
+        "Pass opaque ids from accounts.csv (e.g. usr_employee, usr_buddy), not email addresses.",
+    }
+  }
+  return { emails }
+}
+
+function maskEventAttendees<T extends { attendees?: string[] }>(dir: AccountDirectory, events: T[]): T[] {
+  if (!obfuscationEnabled()) return events
+  return events.map((ev) => ({
+    ...ev,
+    attendees: (ev.attendees ?? []).map((a) => maskEmail(dir, a)),
+  }))
+}
 
 async function getYandexContext() {
   const creds = await readYandexCredentials(WORKSPACE_ROOT, PACKAGE_DIR)
@@ -87,6 +129,7 @@ export function buildServer(): McpServer {
       "TIME RULE: start/end must both be ISO 8601 with explicit offset (e.g. 2026-05-15T12:00:00+03:00) " +
       "OR both naive with timezone=Europe/Moscow. Other timezones require zoned ISO. " +
       "Specify end OR duration_minutes (default 60 min if neither). If both are sent, duration_minutes wins. " +
+      "PRIVACY: attendees are opaque ids from accounts.csv (e.g. usr_employee, usr_buddy), NOT emails. " +
       "IDEMPOTENCY: pass a stable client_token (e.g. SHA-1 of title+start+sorted(attendees)+session-id) " +
       "so retries within 10 minutes don't double-book. " +
       "Does NOT promise external attendee availability — only writes to the user's own calendar.",
@@ -96,7 +139,7 @@ export function buildServer(): McpServer {
       end: z.string().optional(),
       duration_minutes: z.number().int().min(1).max(1440).optional(),
       timezone: z.string().optional(),
-      attendees: z.array(z.string().email()).max(50).optional(),
+      attendees: z.array(z.string().min(1).max(64)).max(50).optional(),
       description: z.string().max(4000).optional(),
       location: z.string().max(500).optional(),
       reminder_minutes: z.number().int().min(0).max(7 * 24 * 60).nullable().optional(),
@@ -104,8 +147,14 @@ export function buildServer(): McpServer {
     },
     async (args) => {
       try {
+        const resolved = await resolveAttendees(args.attendees)
+        if (resolved.error) return asText(resolved.error)
         const ctx = await getYandexContext()
-        const result = await createEvent({ ...ctx, cache: YANDEX_CACHE, input: args })
+        const result = await createEvent({
+          ...ctx,
+          cache: YANDEX_CACHE,
+          input: { ...args, attendees: resolved.emails },
+        })
         return asText(JSON.stringify(result, null, 2))
       } catch (e) {
         return asText(e instanceof Error ? e.message : String(e))
@@ -148,7 +197,8 @@ export function buildServer(): McpServer {
       try {
         const ctx = await getYandexContext()
         const events = await listEvents({ ...ctx, ...mapped })
-        return asText(JSON.stringify(events, null, 2))
+        const dir = await getAccounts()
+        return asText(JSON.stringify(maskEventAttendees(dir, events), null, 2))
       } catch (e) {
         return asText(e instanceof Error ? e.message : String(e))
       }
@@ -251,6 +301,59 @@ export function buildServer(): McpServer {
         return asText(JSON.stringify(result, null, 2))
       } catch (e) {
         return asText(e instanceof Error ? e.message : String(e))
+      }
+    },
+  )
+
+  server.tool(
+    "yandex_calendar_verify",
+    "Проверка доступа к Яндекс.Календарю: CalDAV discovery (current-user-principal → calendar). " +
+      "READ-ONLY, ничего не создаёт. Возвращает выбранный календарь или диагностику ошибки кредов.",
+    {},
+    async () => {
+      try {
+        const creds = await readYandexCredentials(WORKSPACE_ROOT, PACKAGE_DIR)
+        if (!creds.ok) {
+          return asText(JSON.stringify({ ok: false, error: formatNoCredentialsError(creds.diagnostic) }, null, 2))
+        }
+        if (creds.calendarUrl) {
+          return asText(
+            JSON.stringify(
+              {
+                ok: true,
+                mode: "explicit_calendar_url",
+                calendar_url: creds.calendarUrl,
+                login: creds.login,
+              },
+              null,
+              2,
+            ),
+          )
+        }
+        const sel = await discoverCalendarUrl({
+          caldavUrl: creds.caldavUrl,
+          login: creds.login,
+          password: creds.password,
+        })
+        if (!sel.ok) {
+          return asText(JSON.stringify({ ok: false, error: sel.diagnostic }, null, 2))
+        }
+        YANDEX_DISCOVERED_CALENDAR_URL = sel.url
+        return asText(
+          JSON.stringify(
+            {
+              ok: true,
+              mode: "discovery",
+              calendar_name: sel.displayName,
+              calendar_url: sel.url,
+              login: creds.login,
+            },
+            null,
+            2,
+          ),
+        )
+      } catch (e) {
+        return asText(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }, null, 2))
       }
     },
   )

@@ -6,19 +6,21 @@ MCP-сервер, дающий онбординг-агенту руки в Jira:
 (Jira Cloud REST API v2, Basic-auth email + API-token; тот же путь годится и для
 Jira Data Center).
 
+Зависимости и запуск — через [uv](https://docs.astral.sh/uv/) (`astral-uv`).
+
 ## Быстрый старт (mock, без Jira)
 
 ```bash
-cd hackathon
-python3 -m venv .venv && ./.venv/bin/pip install -r jira_mcp/requirements.txt
-cd jira_mcp
-JIRA_MODE=mock ../.venv/bin/python server.py
+cd mcp/jira-mcp
+uv sync
+uv run server.py
+# или: ./run_mock.sh
 # -> http://127.0.0.1:9101/mcp
 ```
 
 Проверка логики без сервера:
 ```bash
-../.venv/bin/python test_smoke.py   # -> SMOKE OK ✅
+uv run test_smoke.py   # -> SMOKE OK ✅
 ```
 
 ## Подключение к Ouroboros
@@ -40,7 +42,14 @@ Settings → Advanced → MCP:
    JIRA_EMAIL=<твой email>
    JIRA_API_TOKEN=<token>
    ```
-4. Запусти: `set -a; source .env; set +a; ../.venv/bin/python server.py`
+4. Запусти:
+   ```bash
+   uv run --env-file .env server.py
+   # или: ./run_real.sh
+   ```
+5. Проверка подключения: `uv run verify_real.py`
+
+Подробно: [SETUP_JIRA_CLOUD.md](SETUP_JIRA_CLOUD.md).
 
 ## Тулзы
 
@@ -81,12 +90,16 @@ Settings → Advanced → MCP:
 ## Файлы
 
 ```
-jira_mcp/
+jira-mcp/
+├── pyproject.toml       # зависимости для uv
+├── uv.lock              # зафиксированные версии
 ├── server.py            # FastMCP-сервер, 5 тулзов, streamable_http :9101
 ├── jira_client.py       # RealJiraClient (Cloud v2) + MockJiraClient
 ├── plan.py              # сборка плана из шаблона роли
 ├── templates/backend.yaml   # 20 задач backend-онбординга (редактируемо)
 ├── test_smoke.py        # offline-тест всей логики
-├── requirements.txt
+├── verify_real.py       # проверка .env → Jira Cloud
+├── run_mock.sh / run_real.sh
+├── requirements.txt     # pip-fallback (источник истины — pyproject.toml)
 └── config.example.env
 ```

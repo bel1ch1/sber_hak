@@ -34,6 +34,7 @@ class JiraClient:
     def bulk_create(self, issues: list) -> list: ...
     def delete_issue(self, key: str) -> None: ...
     def browse_url(self, key: str) -> str: ...
+    def find_account_id(self, email: str) -> str: ...
 
 
 class RealJiraClient(JiraClient):
@@ -100,6 +101,22 @@ class RealJiraClient(JiraClient):
 
     def browse_url(self, key):
         return f"{self.base_url}/browse/{key}"
+
+    def find_account_id(self, email: str) -> str:
+        """Resolve email → Jira Cloud accountId (user search)."""
+        q = (email or "").strip()
+        if not q:
+            raise JiraError("email is required to resolve assignee")
+        r = self._req("GET", "/user/search", params={"query": q, "maxResults": 10})
+        users = r.json() if isinstance(r.json(), list) else []
+        q_low = q.lower()
+        for u in users:
+            if (u.get("emailAddress") or "").lower() == q_low and u.get("accountId"):
+                return u["accountId"]
+        for u in users:
+            if u.get("accountId"):
+                return u["accountId"]
+        raise JiraError(f"No Jira user found for email={q!r}")
 
 
 class MockJiraClient(JiraClient):
@@ -170,3 +187,6 @@ class MockJiraClient(JiraClient):
 
     def browse_url(self, key):
         return f"mock://jira/browse/{key}"
+
+    def find_account_id(self, email: str) -> str:
+        return f"mock-account:{email.strip().lower()}"

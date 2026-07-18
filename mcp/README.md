@@ -2,40 +2,63 @@
 
 Папка для исходников MCP. Ouroboros подключается как **клиент** — сервер запускается отдельно.
 
-## yandex-wiki-mcp (read-only)
+## Docker Compose
 
-| Параметр | Значение |
-|----------|----------|
-| Папка | `mcp/yandex-wiki-mcp/` |
-| Режим | **read-only** (2 tools) |
-| HTTP | `POST /mcp`, `GET /healthz` |
-| Порт (хост) | `3001` |
-| Порт (Docker) | `3005` → `3000` |
-| ID в Ouroboros | `yandex-wiki` |
-| OAuth scope | `wiki:read` достаточно |
+Единый файл: [`docker-compose.mcp.yml`](../docker-compose.mcp.yml) в корне репо.
 
-### Auth
+```powershell
+# только MCP
+docker compose -f docker-compose.mcp.yml up -d --build
 
-`YANDEX_WIKI_OAUTH_TOKEN` + `YANDEX_WIKI_ORG_ID` (организация wiki.yandex.ru).
-
-### Tools
-
-- `mcp_yandex_wiki__yandex_wiki_get_page`
-- `mcp_yandex_wiki__yandex_wiki_list_descendants`
-
-### Регистрация в Ouroboros
-
-```json
-{
-  "id": "yandex-wiki",
-  "name": "yandex-wiki",
-  "url": "http://host.docker.internal:3001/mcp",
-  "transport": "streamable_http",
-  "enabled": true
-}
+# вместе с Ouroboros (локальный docker-compose.yml делает include)
+docker compose up -d --build
 ```
 
-Playbook: `skills/yandex_wiki/SKILL.md`.
+| Сервис | Хост-порт | URL с хоста | URL из compose-сети |
+|--------|-----------|-------------|---------------------|
+| yandex-calendar-mcp | **3004** | `http://localhost:3004/mcp` | `http://yandex-calendar-mcp:3000/mcp` |
+| yandex-mail-mcp | **3006** | `http://localhost:3006/mcp` | `http://yandex-mail-mcp:3000/mcp` |
+| buddy-mcp | **3008** | `http://localhost:3008/mcp` | `http://buddy-mcp:3008/mcp` |
+| stepik-mcp | **3007** | `http://localhost:3007/mcp` | `http://stepik-mcp:3000/mcp` |
+| jira-mcp | **9101** | `http://localhost:9101/mcp` | `http://jira-mcp:9101/mcp` |
+| wiki-mock-mcp | **9102** | `http://localhost:9102/mcp` | `http://wiki-mock-mcp:9102/mcp` |
+| confluence-mcp | **9103** | `http://localhost:9103/mcp` | `http://confluence-mcp:9103/mcp` |
+
+Удалены: `yandex-wiki-mcp`, `onboarding-mcp` (wiki — через `wiki-mock-mcp` или Confluence).
+
+Секреты — в `.env` рядом с каждым MCP (`env_file` optional).
+
+Проверка: `docker compose -f docker-compose.mcp.yml ps` — у всех `healthy`; Node: `GET /healthz`.
+
+### Live `*_verify` (внешний API)
+
+| MCP | Tool | Что дергает |
+|-----|------|-------------|
+| jira-mcp | `jira_verify` | REST get project (`JIRA_PROJECT_KEY`) |
+| confluence-mcp | `confluence_verify` | list spaces (+ pages в space) |
+| yandex-calendar-mcp | `yandex_calendar_verify` | CalDAV discovery |
+| yandex-mail-mcp | `yandex_mail_verify` | IMAP LIST folders |
+| buddy-mcp | `buddy_verify` | каталог accounts.csv / PRIMARY id |
+
+### Анонимизация (id → логин внутри MCP)
+
+| MCP | Есть? | Файл | Как агент передаёт |
+|-----|-------|------|-------------------|
+| yandex-mail | **да** (`MAIL_OBFUSCATION`) | `recipients.csv` | `to: ["usr_manager"]` |
+| yandex-calendar | **да** (`CALENDAR_OBFUSCATION`) | `accounts.csv` | `attendees: ["usr_employee","usr_buddy"]` |
+| jira | **да** | `accounts.csv` | `assignee_id` / `hire_id` → Jira accountId |
+| buddy | **да** | `accounts.csv` | ответы только с `buddy_id` |
+| confluence | **нет user-id в tools** | — | чтение/поиск страниц, без назначения людей |
+
+Demo-логины: почта/календарь/бадди → `zvetshl@yandex.ru`; Jira assignee → `andreyzv5555@gmail.com`. PRIMARY buddy всегда `usr_buddy`.
+
+**Без `*_verify` (нет внешнего API):** `wiki-mock-mcp`, `stepik-mcp`.
+
+```powershell
+docker compose -f docker-compose.mcp.yml up -d --build
+cd mcp/jira-mcp
+uv run --with mcp ..\verify_mcp_live.py
+```
 
 ## yandex-mail-mcp
 
@@ -165,7 +188,7 @@ cd mcp/your-server
 | ID в Ouroboros | `jira` |
 
 ### Auth
-`.env` из `config.example.env`: `JIRA_BASE_URL` + `JIRA_EMAIL` + `JIRA_API_TOKEN` (Basic). Запуск: `./run_real.sh`, проверка: `verify_real.py`.
+`.env` из `config.example.env`: `JIRA_BASE_URL` + `JIRA_EMAIL` + `JIRA_API_TOKEN` (Basic). Локально: `uv sync && uv run --env-file .env server.py`. Docker: сервис `jira-mcp` в `docker-compose.mcp.yml` (порт **9101**, mock по умолчанию).
 
 ### Tools
 - `mcp_jira__jira_get_project`, `mcp_jira__jira_search` (read)
@@ -212,14 +235,15 @@ Playbook: `skills/onboarding/SKILL.md` (шаг 0). Гоча Ouroboros: MCP-се�
 | ID в Ouroboros | `confluence` |
 
 ### Auth
-Те же email+API-token, что для Jira (Basic). `.env` из `config.example.env` + `CONFLUENCE_SPACE_KEY`. Требуется добавить продукт Confluence к Atlassian-сайту (free). Сидер мок-страниц: `seed_confluence.py`.
+Те же email+API-token, что для Jira (Basic). `.env` из `config.example.env` + `CONFLUENCE_SPACE_KEY`. Docker: сервис `confluence-mcp` в `docker-compose.mcp.yml` (порт **9103**). Verify: `confluence_verify` / `verify_confluence.py`.
 
 ### Tools
+- `mcp_confluence__confluence_verify` — list spaces (+ pages)
 - `mcp_confluence__confluence_list_spaces`, `…_list_pages`, `…_search` (CQL), `…_get_page` (read)
 - `mcp_confluence__confluence_create_page` (markdown→storage)
 
 ### Регистрация в Ouroboros
 ```json
-{ "id": "confluence", "name": "confluence", "url": "http://localhost:9103/mcp", "transport": "streamable_http", "enabled": true }
+{ "id": "confluence", "name": "confluence", "url": "http://confluence-mcp:9103/mcp", "transport": "streamable_http", "enabled": true }
 ```
 Playbook: `skills/onboarding/SKILL.md` (шаг 4 — письмо с инфо о компании).

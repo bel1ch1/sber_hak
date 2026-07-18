@@ -16,25 +16,6 @@
 | `mcp/` | `workspace/` | MCP-серверы — общий код; рабочие файлы — у каждого свои |
 | `memory/identity.md`, `memory/knowledge/**` | `memory/knowledge/outcomes/` | Базовая личность и регламенты — общие; исходы прогонов — runtime |
 
-### Структура
-
-```text
-.
-├── OUROBOROS_DEV.md      # гайд (git)
-├── .gitignore            # git
-├── agent.env             # конфиг окружения (git)
-├── .env                  # секреты — создать из agent.env (не в git)
-├── docker-compose.yml    # шаблон ниже (не в git)
-├── ouroboros/            # git clone движка (не в git)
-├── skills/               # playbook'и → /app/data/skills/external (git)
-│   └── _template/
-├── mcp/                  # исходники MCP-серверов (git)
-├── memory/               # память агента → /app/data/memory
-│   ├── identity.md       # git — общий baseline для команды
-│   └── knowledge/        # git — регламенты; outcomes/ — не в git
-└── workspace/            # рабочие файлы → /workspace (не в git)
-```
-
 ### Почему `workspace/` не в git
 
 У каждого разработчика свои входные данные, черновики и артефакты прогонов. Коммитить их в общий репозиторий — шум в PR и риск перетирания чужих файлов. Для примеров входных данных используйте `skills/<name>/fixtures/` или отдельную папку в `mcp/`.
@@ -92,10 +73,10 @@ volumes:
 | Действие | Почему |
 |----------|--------|
 | Создать `.env` из `agent.env` | Секреты не в git |
-| Создать `docker-compose.yml` | Инфраструктура не в git |
+| Создать `docker-compose.yml` | Локальный стек с Ouroboros; шаблон §0 + `include: docker-compose.mcp.yml` |
+| MCP без Ouroboros | `docker compose -f docker-compose.mcp.yml up -d --build` (файл **в git**) |
 | `git clone` ouroboros | Движок ~700+ файлов, отдельный upstream |
 | API-ключ в Settings | Провайдер LLM обязателен для супервизора |
-| Запуск MCP-сервера | Ouroboros — клиент, сервер пишете вы в `mcp/` |
 | `git remote add` + push | Публикация репозитория хакатона |
 
 ---

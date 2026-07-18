@@ -16,6 +16,7 @@ Config via environment (see config.example.env):
     CONFLUENCE_API_TOKEN=...
     CONFLUENCE_SPACE_KEY=ONB        # default space for search/list
     MCP_PORT=9103
+    MCP_HOST=0.0.0.0                # Docker
 """
 from __future__ import annotations
 
@@ -25,20 +26,44 @@ from mcp.server.fastmcp import FastMCP
 
 from confluence_client import ConfluenceClient, ConfluenceError
 
+HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MCP_PORT", "9103"))
 DEFAULT_SPACE = os.environ.get("CONFLUENCE_SPACE_KEY", "")
 
 
 def _client():
-    return ConfluenceClient(
-        os.environ.get("CONFLUENCE_BASE_URL", ""),
-        os.environ.get("CONFLUENCE_EMAIL", ""),
-        os.environ.get("CONFLUENCE_API_TOKEN", ""),
-    )
+    base = (os.environ.get("CONFLUENCE_BASE_URL") or "").strip()
+    if not base:
+        jira = (os.environ.get("JIRA_BASE_URL") or "").strip().rstrip("/")
+        if jira:
+            base = jira if jira.endswith("/wiki") else f"{jira}/wiki"
+    email = (os.environ.get("CONFLUENCE_EMAIL") or os.environ.get("JIRA_EMAIL") or "").strip()
+    token = (os.environ.get("CONFLUENCE_API_TOKEN") or os.environ.get("JIRA_API_TOKEN") or "").strip()
+    return ConfluenceClient(base, email, token)
 
 
 client = _client()
-mcp = FastMCP("confluence", host="127.0.0.1", port=PORT)
+mcp = FastMCP("confluence", host=HOST, port=PORT)
+
+
+@mcp.tool()
+def confluence_verify(space_key: str = "") -> dict:
+    """Проверка доступа к Confluence: list spaces (+ опционально pages в space).
+
+    Read-only. Если space_key пуст — берётся CONFLUENCE_SPACE_KEY."""
+    key = (space_key or DEFAULT_SPACE).strip()
+    try:
+        spaces = client.list_spaces()
+        out: dict = {"ok": True, "space_count": len(spaces),
+                     "spaces": [{"key": s["key"], "name": s["name"]} for s in spaces[:20]]}
+        if key:
+            pages = client.list_pages(key)
+            out["space_key"] = key
+            out["page_count"] = len(pages)
+            out["sample_pages"] = [{"id": p["id"], "title": p["title"]} for p in pages[:5]]
+        return out
+    except ConfluenceError as e:
+        return {"ok": False, "error": str(e)}
 
 
 @mcp.tool()
@@ -91,6 +116,6 @@ def confluence_create_page(space_key: str, title: str, body_markdown: str, paren
 
 
 if __name__ == "__main__":
-    print(f"[confluence-mcp] port={PORT} space={DEFAULT_SPACE or '(any)'} "
-          f"-> http://127.0.0.1:{PORT}/mcp")
+    print(f"[confluence-mcp] host={HOST} port={PORT} space={DEFAULT_SPACE or '(any)'} "
+          f"-> http://{HOST}:{PORT}/mcp")
     mcp.run(transport="streamable-http")

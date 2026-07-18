@@ -20,6 +20,7 @@ import {
   listMessages,
   getMessage,
   sendMail,
+  verifyMailConnection,
 } from "./yandex-mail-client.ts"
 import {
   ListMessagesInput,
@@ -96,6 +97,21 @@ export function buildServer(): McpServer {
         return asText(JSON.stringify(folders, null, 2))
       } catch (e) {
         return asText(e instanceof Error ? e.message : String(e))
+      }
+    },
+  )
+
+  server.tool(
+    "yandex_mail_verify",
+    "Проверка доступа к Яндекс.Почте: IMAP LIST folders. READ-ONLY, писем не читает и не шлёт.",
+    {},
+    async () => {
+      try {
+        const { creds } = await getContext()
+        const result = await verifyMailConnection(creds)
+        return asText(JSON.stringify({ ok: true, ...result }, null, 2))
+      } catch (e) {
+        return asText(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }, null, 2))
       }
     },
   )

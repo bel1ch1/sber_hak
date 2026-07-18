@@ -1,7 +1,7 @@
 ---
 name: yandex_calendar
 description: Работа с Яндекс.Календарём через CalDAV MCP
-version: 0.2.0
+version: 0.3.0
 type: instruction
 when_to_use: User asks to schedule, list, update, cancel meetings or check calendar availability in Yandex Calendar.
 ---
@@ -40,9 +40,10 @@ Ouroboros **намеренно** не выдаёт MCP tools в быстром/e
 - ISO с offset (`+03:00`) **или** naive + `timezone: Europe/Moscow`
 - Для **create_event**: удобнее передавать `duration_minutes`; `end` — альтернатива. Если модель отправит оба, сервер возьмёт `duration_minutes`
 - Передавай `client_token` при create для идемпотентности
+- При `CALENDAR_OBFUSCATION=true` передавай в `attendees` только opaque ID (`usr_*`), а не email
 
 ## Запреты
 - Не выдумывать uid/href/etag — брать из `list_events` или ответа create
 - Не менять attendees через update — только cancel + create
-- Не обещать свободное время внешних участников (только свой календарь)
+- Не обещать свободное время внешних участников, если availability tool фактически проверил только календарь владельца
 - При недоступном MCP — сообщить явно, не фантазировать события

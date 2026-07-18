@@ -50,4 +50,4 @@ rb = server.jira_rollback_plan("PAY", "anon-demo")
 assert rb["ok"] and len(rb["deleted"]) >= 16
 print(f"[tool] rollback deleted={len(rb['deleted'])}")
 
-print("\nSMOKE OK ✅")
+print("\nSMOKE OK")

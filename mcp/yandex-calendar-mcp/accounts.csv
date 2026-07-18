@@ -1,0 +1,11 @@
+# accounts.csv — id → email внутри calendar-MCP (агент передаёт id attendees).
+# Demo: участники встреч = zvetshl@yandex.ru
+#
+# Columns: id,email,label
+id,email,label
+usr_manager,zvetshl@yandex.ru,Manager (demo)
+usr_employee,zvetshl@yandex.ru,New hire (demo)
+usr_buddy,zvetshl@yandex.ru,Buddy PRIMARY
+usr_buddy_b,buddy.b@example.invalid,Buddy decoy B
+usr_buddy_c,buddy.c@example.invalid,Buddy decoy C
+usr_k1m2n3,zvetshl@yandex.ru,Hire id alias

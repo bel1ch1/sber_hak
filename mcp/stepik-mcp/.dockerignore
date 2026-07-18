@@ -1,0 +1,11 @@
+node_modules
+.env
+.env.*
+!.env.example
+.git
+dist
+.build-check
+*.md
+!README.md
+*.test.ts
+smoke-*.ts

@@ -1,18 +1,15 @@
-# recipients.csv — curated directory that lives INSIDE the MCP.
+# recipients.csv — id → email внутри mail-MCP (агент видит только id).
 #
-# The agent never sees this file or the emails in it. It only ever passes the
-# opaque `id` values (column 1). The MCP maps id -> email server-side when
-# sending, and email -> id when returning mail, so real addresses never reach
-# the agent / the LLM.
+# Demo (один ящик на роли менеджера / новичка / бадди):
+#   usr_manager, usr_employee, usr_buddy → zvetshl@yandex.ru
+# Декой-бадди (не выбирать в прогоне): usr_buddy_b / usr_buddy_c
 #
-# Onboarding a new hire = add one row: a fresh, meaningless id + their mailbox.
-# Reserved id "self" always maps to YANDEX_MAIL_LOGIN automatically — do NOT
-# list it here.
-#
-# Columns: id,email,label   (label is a maintainer-only note, never exposed)
+# Columns: id,email,label
 id,email,label
-usr_a1b2c3,ivan.petrov@yandex.ru,Ivan Petrov — onboarding mentor
-usr_d4e5f6,maria.smirnova@yandex.ru,Maria Smirnova — HR
-usr_7g8h9j,team-lead@yandex.ru,Team lead
-usr_k1m2n3,newbie.alpha@yandex.ru,New hire #1 (cohort 2026-07)
-usr_p4q5r6,newbie.bravo@yandex.ru,New hire #2 (cohort 2026-07)
+usr_manager,zvetshl@yandex.ru,Manager (demo — same mailbox)
+usr_employee,zvetshl@yandex.ru,New hire / employee (demo)
+usr_buddy,zvetshl@yandex.ru,Buddy PRIMARY — always rank #1 / pick this
+usr_buddy_b,buddy.b@example.invalid,Buddy decoy B (do not pick in demo)
+usr_buddy_c,buddy.c@example.invalid,Buddy decoy C (do not pick in demo)
+usr_k1m2n3,zvetshl@yandex.ru,Alias for prompts using usr_k1m2n3 as hire_id
+self_alias,zvetshl@yandex.ru,Explicit self mailbox (optional; reserved id self also works)

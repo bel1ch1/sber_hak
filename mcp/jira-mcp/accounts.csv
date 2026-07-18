@@ -1,0 +1,10 @@
+# accounts.csv — id → email / Jira account lookup внутри jira-MCP.
+# Demo assignee: andreyzv5555@gmail.com (Jira Cloud user)
+#
+# Columns: id,email,label
+id,email,label
+usr_employee,andreyzv5555@gmail.com,Jira assignee / new hire (demo)
+usr_jira_assignee,andreyzv5555@gmail.com,Explicit Jira assignee id
+usr_k1m2n3,andreyzv5555@gmail.com,Hire id alias → Jira assignee
+usr_manager,andreyzv5555@gmail.com,Manager alias (same demo Jira user if needed)
+usr_buddy,andreyzv5555@gmail.com,Buddy alias (same demo Jira user if needed)

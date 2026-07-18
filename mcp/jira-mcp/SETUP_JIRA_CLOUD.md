@@ -40,8 +40,9 @@
 ## Шаг 4. Заполнить .env
 
 ```bash
-cd hackathon/jira_mcp
+cd mcp/jira-mcp
 cp config.example.env .env
+uv sync
 ```
 Открой `.env` и впиши свои 4 значения:
 ```
@@ -57,7 +58,7 @@ MCP_PORT=9101
 ## Шаг 5. Проверить подключение
 
 ```bash
-../.venv/bin/python verify_real.py
+uv run verify_real.py
 ```
 Ждём:
 ```
@@ -69,7 +70,8 @@ MCP_PORT=9101
 ## Шаг 6. Запустить сервер против реальной Jira
 
 ```bash
-./run_real.sh
+uv run --env-file .env server.py
+# или: ./run_real.sh
 # -> http://127.0.0.1:9101/mcp
 ```
 
