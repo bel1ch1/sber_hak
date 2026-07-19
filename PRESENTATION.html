@@ -1,0 +1,393 @@
+<title>Онбординг-агент — итоги хакатона</title>
+<style>
+  :root {
+    --bg: #0f130f;
+    --surface: #151b15;
+    --surface-2: #1a221a;
+    --ink: #e9efe7;
+    --muted: #98a596;
+    --accent: #3ed164;
+    --accent-deep: #21a038;
+    --warn: #d9a441;
+    --line: rgba(152, 165, 150, 0.22);
+    --chip-auto: rgba(62, 209, 100, 0.14);
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, Menlo, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f8f4;
+      --surface: #ffffff;
+      --surface-2: #eef2ec;
+      --ink: #132015;
+      --muted: #57685b;
+      --accent: #178a33;
+      --accent-deep: #21a038;
+      --warn: #96690f;
+      --line: rgba(19, 32, 21, 0.16);
+      --chip-auto: rgba(23, 138, 51, 0.1);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f130f; --surface: #151b15; --surface-2: #1a221a; --ink: #e9efe7;
+    --muted: #98a596; --accent: #3ed164; --accent-deep: #21a038; --warn: #d9a441;
+    --line: rgba(152,165,150,.22); --chip-auto: rgba(62,209,100,.14);
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f8f4; --surface: #ffffff; --surface-2: #eef2ec; --ink: #132015;
+    --muted: #57685b; --accent: #178a33; --accent-deep: #21a038; --warn: #96690f;
+    --line: rgba(19,32,21,.16); --chip-auto: rgba(23,138,51,.1);
+  }
+
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body { font-family: var(--sans); font-size: 16px; line-height: 1.55; }
+  * { box-sizing: border-box; }
+
+  .deck { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { .deck { scroll-behavior: auto; } }
+
+  section.slide {
+    min-height: 100dvh; scroll-snap-align: start;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 4.5rem clamp(1.25rem, 6vw, 6rem) 4rem;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  .eyebrow {
+    font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 1.1rem;
+  }
+  .eyebrow::before { content: "— "; color: var(--muted); }
+  h1, h2 {
+    font-family: var(--mono); font-weight: 700; letter-spacing: -0.015em;
+    text-wrap: balance; margin: 0 0 1rem;
+  }
+  h1 { font-size: clamp(2rem, 6.5vw, 4.4rem); line-height: 1.06; }
+  h2 { font-size: clamp(1.4rem, 3.6vw, 2.2rem); line-height: 1.15; }
+  p.lede { font-size: clamp(1.02rem, 2vw, 1.22rem); max-width: 34em; color: var(--ink); }
+  p, li { max-width: 62ch; }
+  .muted { color: var(--muted); }
+  .accent { color: var(--accent); }
+  code, .mono { font-family: var(--mono); font-size: 0.92em; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* title slide */
+  .title-metrics { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 2.2rem; }
+  .metric {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+    padding: 0.9rem 1.15rem; min-width: 9.5rem;
+  }
+  .metric .v { font-family: var(--mono); font-size: 1.7rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .metric .l { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+
+  /* chat mock */
+  .chat { display: flex; flex-direction: column; gap: 0.65rem; max-width: 40rem; margin-top: 1.4rem; }
+  .msg { padding: 0.7rem 1rem; border-radius: 10px; border: 1px solid var(--line); font-size: 0.95rem; }
+  .msg.user { align-self: flex-end; background: var(--chip-auto); border-color: transparent; max-width: 85%; }
+  .msg.agent { align-self: flex-start; background: var(--surface); max-width: 92%; }
+  .msg .who { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 0.25rem; }
+
+  /* architecture */
+  .arch { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; margin-top: 1.6rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 1.1rem 1.25rem;
+  }
+  .card h3 { font-family: var(--mono); font-size: 0.95rem; margin: 0 0 0.5rem; color: var(--accent); }
+  .card ul { margin: 0; padding-left: 1.1rem; font-size: 0.92rem; }
+  .card li { margin: 0.2rem 0; }
+
+  /* pipeline */
+  .pipeline { list-style: none; margin: 1.8rem 0 0; padding: 0; position: relative; }
+  .pipeline::before {
+    content: ""; position: absolute; left: 1.05rem; top: 0.8rem; bottom: 0.8rem;
+    width: 2px; background: linear-gradient(var(--accent-deep), var(--accent));
+    opacity: 0.55;
+  }
+  .stage { display: flex; align-items: baseline; gap: 1rem; padding: 0.45rem 0; position: relative; }
+  .stage .n {
+    font-family: var(--mono); font-weight: 700; width: 2.1rem; height: 2.1rem; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 50%;
+    color: var(--accent); font-size: 0.9rem; position: relative; z-index: 1;
+    align-self: center;
+  }
+  .stage .t { font-size: 1rem; }
+  .stage .t b { font-family: var(--mono); font-weight: 600; }
+  .hitl {
+    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0.18rem 0.5rem; border-radius: 999px; border: 1px solid var(--line);
+    color: var(--muted); white-space: nowrap;
+  }
+  .hitl.stop { color: var(--warn); border-color: var(--warn); }
+  .hitl.auto { color: var(--accent); border-color: transparent; background: var(--chip-auto); }
+
+  /* results table */
+  .tablewrap { overflow-x: auto; margin-top: 1.5rem; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; min-width: 44rem; font-size: 0.93rem; }
+  th, td { text-align: left; padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td.big { font-family: var(--mono); font-weight: 700; color: var(--accent); font-size: 1.15rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .footnote { font-size: 0.82rem; color: var(--muted); max-width: 70ch; margin-top: 1rem; }
+  .formula {
+    font-family: var(--mono); font-size: clamp(0.95rem, 2.4vw, 1.35rem);
+    background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: 6px; padding: 1rem 1.3rem; margin-top: 1.6rem; overflow-x: auto; white-space: nowrap;
+  }
+
+  /* lessons */
+  .lessons { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; margin-top: 1.6rem; }
+  .lesson { border-left: 3px solid var(--accent-deep); padding: 0.2rem 0 0.2rem 1rem; }
+  .lesson b { font-family: var(--mono); font-size: 0.95rem; }
+  .lesson p { margin: 0.3rem 0 0; font-size: 0.9rem; color: var(--muted); }
+
+  /* artifacts / debts */
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+  .cols ul { margin: 0.4rem 0 0; padding-left: 1.15rem; font-size: 0.95rem; }
+  .cols li { margin: 0.35rem 0; }
+  .cols h3 { font-family: var(--mono); font-size: 1rem; margin: 0; color: var(--accent); }
+
+  /* progress dots */
+  .dots {
+    position: fixed; right: 1.1rem; top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 0.55rem; z-index: 10;
+  }
+  .dots a {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
+    opacity: 0.45; display: block;
+  }
+  .dots a.on { background: var(--accent); opacity: 1; }
+  .dots a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 640px) { .dots { display: none; } }
+
+  .slide-tag {
+    position: absolute; bottom: 1.1rem; right: 1.4rem;
+    font-family: var(--mono); font-size: 0.7rem; color: var(--muted); letter-spacing: 0.1em;
+  }
+  .kbd-hint { position: fixed; bottom: 0.9rem; left: 1.4rem; font-family: var(--mono); font-size: 0.7rem; color: var(--muted); z-index: 10; }
+  @media (max-width: 640px) { .kbd-hint { display: none; } }
+</style>
+
+<div class="deck" id="deck">
+
+  <!-- 1 · титул -->
+  <section class="slide" id="s1">
+    <div class="eyebrow">Sber Hack · июль 2026</div>
+    <h1>Онбординг-агент:<br>одно сообщение —<br>и сотрудник онбордится</h1>
+    <p class="lede">Руководитель пишет в чат обезличенный ID нового сотрудника.
+    Автономный агент на Ouroboros проводит все шесть этапов онбординга сам —
+    и останавливается только там, где нужно решение человека.</p>
+    <div class="title-metrics">
+      <div class="metric"><div class="v num">6</div><div class="l">этапов end-to-end</div></div>
+      <div class="metric"><div class="v num">7</div><div class="l">MCP-серверов</div></div>
+      <div class="metric"><div class="v num">3:22</div><div class="l">полный автономный прогон</div></div>
+      <div class="metric"><div class="v num">0</div><div class="l">ПДн в контексте агента</div></div>
+    </div>
+    <div class="slide-tag">1 / 7</div>
+  </section>
+
+  <!-- 2 · как выглядит -->
+  <section class="slide" id="s2">
+    <div class="eyebrow">01 · Продукт</div>
+    <h2>Весь онбординг — из одного сообщения в чате</h2>
+    <div class="chat">
+      <div class="msg user"><span class="who">Руководитель</span>
+        У нас новый сотрудник <code>usr_r3s7t9</code>, выходит в команду платежей
+        backend-разработчиком. Запусти полный онбординг.</div>
+      <div class="msg agent"><span class="who">Агент</span>
+        Задача запущена. Этап 1 — доступы: полный черновик заявки
+        (Naumen, GitLab, Jira, Grafana, K8s stage…).<br>
+        Подтвердите черновик — отвечайте <b>ОК</b>.</div>
+      <div class="msg user"><span class="who">Руководитель</span>ОК</div>
+      <div class="msg agent"><span class="who">Агент</span>
+        Заявка отправлена ✅. Этап 2 — бадди: топ-3 кандидата, рекомендую
+        <code>usr_buddy</code> (senior, Платёжные сервисы)…</div>
+    </div>
+    <p class="footnote">Дальше агент сам: welcome-письмо, встречи в календаре,
+    курсы Stepik, цели испытательного срока с Excel и планом в Jira.</p>
+    <div class="slide-tag">2 / 7</div>
+  </section>
+
+  <!-- 3 · архитектура -->
+  <section class="slide" id="s3">
+    <div class="eyebrow">02 · Архитектура</div>
+    <h2>Skill = политика. MCP = руки.<br>ПДн не покидают MCP.</h2>
+    <div class="arch">
+      <div class="card">
+        <h3>Ouroboros (ядро)</h3>
+        <ul>
+          <li>оркестратор-skill v0.5.3 + 6 этапных skills</li>
+          <li>состояние в <code>state.json</code> (task drive)</li>
+          <li>HITL: черновик → «ОК» → один execute</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>7 MCP-серверов</h3>
+        <ul>
+          <li>gmail · google-calendar</li>
+          <li>jira (+Excel целей ИС) · confluence</li>
+          <li>buddy · stepik · wiki</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Privacy by design</h3>
+        <ul>
+          <li>агент видит только <code>usr_*</code> ID</li>
+          <li>email/ФИО — в CSV внутри MCP</li>
+          <li>раскрытие на write, обратная маскировка на read</li>
+        </ul>
+      </div>
+    </div>
+    <div class="slide-tag">3 / 7</div>
+  </section>
+
+  <!-- 4 · пайплайн -->
+  <section class="slide" id="s4">
+    <div class="eyebrow">03 · Пайплайн</div>
+    <h2>Шесть этапов, четыре остановки, welcome — сам</h2>
+    <ol class="pipeline">
+      <li class="stage"><span class="n num">0</span><span class="t"><b>Запуск</b> — распознавание триггера, подтверждение полей</span><span class="hitl stop">стоп</span></li>
+      <li class="stage"><span class="n num">1</span><span class="t"><b>Доступы</b> — заявка письмом менеджеру</span><span class="hitl stop">стоп</span></li>
+      <li class="stage"><span class="n num">2</span><span class="t"><b>Бадди</b> — топ-3 кандидата, письмо наставнику</span><span class="hitl stop">стоп</span></li>
+      <li class="stage"><span class="n num">3</span><span class="t"><b>Welcome</b> — письмо сотруднику</span><span class="hitl auto">auto</span></li>
+      <li class="stage"><span class="n num">4</span><span class="t"><b>Встречи</b> — календарь первой недели</span><span class="hitl stop">стоп</span></li>
+      <li class="stage"><span class="n num">5</span><span class="t"><b>Курсы</b> — подбор и зачисление в Stepik</span><span class="hitl stop">стоп</span></li>
+      <li class="stage"><span class="n num">6</span><span class="t"><b>Цели ИС</b> — Excel + план в Jira + письмо</span><span class="hitl stop">стоп</span></li>
+    </ol>
+    <p class="footnote">Между этапами агент не спрашивает «продолжать?» —
+    после «ОК» сразу исполняет и показывает следующий черновик.</p>
+    <div class="slide-tag">4 / 7</div>
+  </section>
+
+  <!-- 5 · замеры -->
+  <section class="slide" id="s5">
+    <div class="eyebrow">04 · Замеры скорости</div>
+    <h2>Пайплайн — это минуты.<br>«Час» — это паузы человека.</h2>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Прогон</th><th>Режим</th><th>Время</th><th>Что сделано</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">usr_k1m2n3</td>
+            <td>автономный</td>
+            <td class="big">4:04</td>
+            <td>wiki → бадди → Stepik-зачисление → Jira-план (epic + 10 задач, живой Jira Cloud) → письмо → Confluence</td>
+          </tr>
+          <tr>
+            <td class="mono">usr_p8q2w4</td>
+            <td>автономный, повтор</td>
+            <td class="big">3:22</td>
+            <td>тот же объём — результат воспроизводится</td>
+          </tr>
+          <tr>
+            <td class="mono">usr_r3s7t9</td>
+            <td>классический HITL, авто-«ОК»</td>
+            <td class="big">≈ 10–15 мин*</td>
+            <td>все 6 этапов с черновиками и подтверждениями</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="formula">T ≈ 4 мин работы агента + N<sub>остановок</sub> × (перезапуск задачи + реакция человека)</div>
+    <p class="footnote">* Каждая HITL-остановка в Ouroboros завершает задачу и
+    перезапускает продолжение по «ОК» (~30–60 с накладных на этап) — при мгновенных
+    ответах выходит 10–15 минут. Часовой прогон = те же минуты работы агента,
+    растянутые человеческими паузами. Стоимость прогона: $1.4–2.5 (Sonnet 4.6).
+    Замер: Jira/Stepik/buddy/wiki/Confluence — реальные MCP; почта и календарь — моки
+    с теми же схемами инструментов.</p>
+    <div class="slide-tag">5 / 7</div>
+  </section>
+
+  <!-- 6 · уроки -->
+  <section class="slide" id="s6">
+    <div class="eyebrow">05 · Чему научился агент</div>
+    <h2>12 learning-loops за 5 дней</h2>
+    <div class="lessons">
+      <div class="lesson"><b>Инфра ≠ бизнес-логика</b>
+        <p>SMTP-таймаут, зомби-задачи, LIGHT-модель маскируются под «пайплайн сломан». Сначала смотри слой ниже skills.</p></div>
+      <div class="lesson"><b>Privacy наизнанку</b>
+        <p>Раскрытие ID на отправке, обратная маскировка на чтении. Общий ящик и <code>accepted=["self"]</code> — не ошибка.</p></div>
+      <div class="lesson"><b>Экономный HITL</b>
+        <p>Остановки только на 5 этапах, welcome — auto, без «продолжать?». Двухфазный write убрали — слишком медленно.</p></div>
+      <div class="lesson"><b>Один источник истины</b>
+        <p>План ИС и Excel — только выделенные Jira-tools, не самодельные артефакты агента.</p></div>
+      <div class="lesson"><b>Схема важнее промпта</b>
+        <p>Capability map привязана к живым именам MCP-tools, а не к выдуманным API.</p></div>
+      <div class="lesson"><b>Чистый прогон = новый hire</b>
+        <p>Устаревший <code>state.json</code> ломает демо сильнее любого бага. <code>usr_k1m2n3</code> → <code>usr_p8q2w4</code> → <code>usr_r3s7t9</code>.</p></div>
+    </div>
+    <div class="slide-tag">6 / 7</div>
+  </section>
+
+  <!-- 7 · артефакты и дальше -->
+  <section class="slide" id="s7">
+    <div class="eyebrow">06 · Итоги и дальше</div>
+    <h2>Живые артефакты, честные долги</h2>
+    <div class="cols">
+      <div>
+        <h3>Сделано</h3>
+        <ul>
+          <li>e2e-пайплайн записан на видео (<code>usr_r3s7t9</code>)</li>
+          <li>epic + 10 задач в живом Jira Cloud, Excel целей ИС</li>
+          <li>страница онбординга в Confluence</li>
+          <li>письма и встречи через Gmail / Google Calendar MCP</li>
+          <li>3 воспроизводимых замера скорости</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Открытые долги</h3>
+        <ul>
+          <li>реальное (не mock) зачисление в Stepik</li>
+          <li>rollback писем и календаря (Jira уже умеет)</li>
+          <li>надёжный read-back assignee из Jira search</li>
+          <li>меньше перезапусков задач на HITL-остановках</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Вывод</h3>
+        <p style="margin-top:.4rem">Онбординг из процесса «на день» становится
+        <b class="accent">диалогом на 10 минут</b> — человек оставляет себе только решения,
+        рутину забирает агент.</p>
+      </div>
+    </div>
+    <div class="slide-tag">7 / 7</div>
+  </section>
+
+</div>
+
+<nav class="dots" aria-label="Слайды">
+  <a href="#s1" aria-label="Слайд 1"></a><a href="#s2" aria-label="Слайд 2"></a>
+  <a href="#s3" aria-label="Слайд 3"></a><a href="#s4" aria-label="Слайд 4"></a>
+  <a href="#s5" aria-label="Слайд 5"></a><a href="#s6" aria-label="Слайд 6"></a>
+  <a href="#s7" aria-label="Слайд 7"></a>
+</nav>
+<div class="kbd-hint">↑ ↓ / PgUp PgDn — листать</div>
+
+<script>
+  const deck = document.getElementById("deck");
+  const slides = [...document.querySelectorAll("section.slide")];
+  const dots = [...document.querySelectorAll(".dots a")];
+
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        const i = slides.indexOf(e.target);
+        dots.forEach((d, j) => d.classList.toggle("on", i === j));
+      }
+    });
+  }, { root: deck, threshold: 0.55 });
+  slides.forEach((s) => obs.observe(s));
+
+  let cur = 0;
+  const go = (i) => {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides[cur].scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
+  document.addEventListener("keydown", (e) => {
+    if (["ArrowDown", "PageDown", " "].includes(e.key)) { e.preventDefault(); go(slides.findIndex(s => s.getBoundingClientRect().top > 4) === -1 ? cur + 1 : slides.findIndex(s => s.getBoundingClientRect().top > 4)); }
+    if (["ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); const past = slides.filter(s => s.getBoundingClientRect().top < -4); go(past.length - 1); }
+  });
+</script>
