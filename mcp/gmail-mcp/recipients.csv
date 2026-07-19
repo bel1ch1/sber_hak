@@ -12,4 +12,6 @@ usr_buddy,andreyzv5555@gmail.com,Buddy PRIMARY — always rank #1 / pick this
 usr_buddy_b,buddy.b@example.invalid,Buddy decoy B (do not pick in demo)
 usr_buddy_c,buddy.c@example.invalid,Buddy decoy C (do not pick in demo)
 usr_k1m2n3,andreyzv5555@gmail.com,Alias for prompts using usr_k1m2n3 as hire_id
+usr_p8q2w4,andreyzv5555@gmail.com,Clean-recording hire id (2026-08 video)
+usr_r3s7t9,andreyzv5555@gmail.com,Clean-recording hire id (video v2)
 self_alias,andreyzv5555@gmail.com,Explicit self mailbox (optional; reserved id self also works)

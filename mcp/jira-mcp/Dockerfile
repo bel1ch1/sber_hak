@@ -3,7 +3,7 @@ WORKDIR /app
 ENV PIP_DEFAULT_TIMEOUT=120
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-COPY server.py jira_client.py plan.py excel_plan.py accounts.py ./
+COPY server.py jira_client.py plan.py excel_plan.py accounts.py privacy.py ./
 COPY templates ./templates
 COPY accounts.csv ./accounts.csv
 ENV MCP_HOST=0.0.0.0 \

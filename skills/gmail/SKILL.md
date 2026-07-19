@@ -29,14 +29,16 @@ Tools доступны в **task**, не в ephemeral-чате. Yandex mail MCP 
 1. Проверь schemas (в т.ч. `attachments` у send).
 2. Перед чтением/`send` вызови `mcp_gmail__gmail_verify()`.
 3. При ошибке auth / `MailSendDisabled` — `BLOCKED`, не симулируй send.
-4. После send: непустой `messageId`, адресаты в `accepted`.
+4. После send: непустой `messageId`, адресаты в `accepted`. Sent-reconcile только при timeout/unknown.
+5. Раскрытие opaque id → email в исходящем письме — штатно (`expandIdsInText`). На чтении MCP снова маскирует. Не считай это privacy-инцидентом.
 
 ## Правила
 - `folder` по умолчанию `INBOX`; Sent — `SENT` (из `list_folders`).
 - `uid` в list/get — **Gmail message id** (строка), не IMAP uid.
 - Адресаты при обфускации — opaque ID; в subject/text тоже можно писать id — MCP раскрывает перед send.
+- При `list_messages` / `get_message` MCP обратно маскирует известные email в subject/body → `usr_*` / `self` / `ext_*` (агент не должен видеть развёрнутые адреса).
 - Вложения: до 3 × `{filename, content_base64}`; ~5 MiB; xlsx/xls/pdf/md/txt/png/jpg/jpeg/csv.
-- Календарь — отдельно (`yandex-calendar-mcp`).
+- Календарь — отдельно (`google-calendar-mcp`).
 
 ## Запреты
 - Не send без approve / playbook authorize

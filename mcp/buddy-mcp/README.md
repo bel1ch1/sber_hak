@@ -15,7 +15,7 @@
 
 | id | email (только в CSV) |
 |----|----------------------|
-| `usr_buddy` | zvetshl@yandex.ru — **выбирать всегда** |
+| `usr_buddy` | andreyzv5555@gmail.com — **выбирать всегда** |
 | `usr_buddy_b` / `usr_buddy_c` | decoy |
 
 ## Docker

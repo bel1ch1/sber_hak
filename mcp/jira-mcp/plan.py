@@ -81,6 +81,8 @@ def build_plan(*, role: str, project_key: str, hire_id: str, start_date: str,
         "issuetype": {"name": "Epic"},
         "labels": labels,
     }
+    # Assignee is applied after create via PUT /assignee (board sync). Keep fields
+    # free of assignee so bulk create never fails on assignable-user checks.
 
     source = tpl.get("goals") or tpl.get("tasks") or []
     tasks = []
@@ -101,8 +103,6 @@ def build_plan(*, role: str, project_key: str, hire_id: str, start_date: str,
             desc_parts.append(f"Вес цели: {t['weight']}")
         if desc_parts:
             f["description"] = "\n".join(desc_parts)
-        if assignee:
-            f["assignee"] = assignee
         tasks.append(f)
 
-    return {"epic": epic_fields, "tasks": tasks}
+    return {"epic": epic_fields, "tasks": tasks, "assignee": assignee}

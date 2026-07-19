@@ -1,7 +1,7 @@
 ---
 name: buddy_matching
 description: Подбирает топ-3 кандидатов в бадди по рабочим критериям, принимает версионный выбор руководителя и после подтверждения отправляет письмо выбранному buddy_id.
-version: 0.2.3
+version: 0.3.1
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 2 «Бадди» или руководитель просит подобрать наставника для обезличенного employee_id.
 ---
@@ -92,23 +92,19 @@ when_to_use: Главный onboarding-оркестратор делегируе
 
 ## Согласование и исполнение
 
-Полная утверждаемая версия включает:
+Полная утверждаемая версия включает: выбранный `buddy_id`, обоснование, полный текст письма и
+`mcp_gmail__gmail_send(to=[buddy_id], subject=<тема>, text=<тело>)`.
 
-- выбранный `buddy_id`;
-- обоснование;
-- полный текст письма;
-- действие `mcp_gmail__gmail_send(to=[buddy_id], subject=<тема утвержденной версии>, text=<plain-text тело утвержденной версии>)`.
+HITL только у оркестратора. Один draft-вызов, один execute после OK.
 
-Если `approved_version` не совпадает с `draft_version`, не отправляй письмо. После правки увеличь версию и покажи весь вариант снова.
-
-При совпадении версий:
-
-1. Сформируй action marker и operation key по разделу «Идемпотентность» этого файла.
-2. Сначала верни `PREPARED`, полный payload, key/hash и не вызывай send. Только в следующем запуске с подтвержденной записью `PENDING`, совпадающими key/hash/version и `execute_authorized=true` вызови `mcp_gmail__gmail_send(to=[buddy_id], subject=<тема утвержденной версии>, text=<plain-text тело утвержденной версии>)`. В теле/теме допустимы opaque ID — MCP раскрывает их перед send.
-3. Успех подтвержден только если ответ содержит непустой `message_id`, `accepted` содержит выбранный `buddy_id`, а `rejected` пуст. Только тогда сохрани выбранный `buddy_id` и безопасный `message_id` для этапа встреч.
-4. При ошибке или malformed/partial-ответе верни `BLOCKED`, сохрани выбранного бадди и не заявляй об отправке.
-5. После timeout или неизвестного результата вызови `mcp_gmail__gmail_list_folders()`, определи Sent path, затем `mcp_gmail__gmail_list_messages(folder=<sent path>, since=<attempt_started_at>, limit=100)`. Сопоставь action marker, `buddy_id` и время; при необходимости сравни тело через `mcp_gmail__gmail_get_message(folder=<sent path>, uid=<найденный uid>)`. При неоднозначности не повторяй send и запроси ручную проверку.
-6. Повтор не должен заново выполнять подбор. Считай этап завершенным только после подтвержденной отправки; не жди ответа бадди в MVP.
+- `approved_version` пуст/≠ `draft_version` → черновик (топ-3 или выбранный buddy + письмо), `AWAITING_APPROVAL`, без send. После правки увеличь версию.
+- `approved_version == draft_version` и `execute_authorized=false` → `AWAITING_APPROVAL`.
+- `approved_version == draft_version` и `execute_authorized=true`:
+  1. Action marker + operation key/hash.
+  2. Уже `CONFIRMED` с тем же key → `EXECUTED` без повторного send.
+  3. Иначе `mcp_gmail__gmail_send(to=[buddy_id], …)`. Opaque ID в теме/теле — штатно.
+- Успех: `messageId` + непустой `accepted` + пустой `rejected` (`to` id или `self`/shared-mailbox alias). Сохрани `buddy_id` + `messageId` для встреч.
+- Sent-reconcile только при timeout/malformed. В MVP не жди ответа бадди. Повтор execute не перезапускает подбор.
 
 ## Выход
 

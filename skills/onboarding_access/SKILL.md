@@ -1,7 +1,7 @@
 ---
 name: onboarding_access
 description: Готовит для нового сотрудника обоснованный список доступов, проводит версионное согласование с руководителем и после подтверждения отправляет заявку по обезличенному ID.
-version: 0.1.6
+version: 0.2.3
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 1 «Доступы» или руководитель явно просит подготовить заявку на доступы для обезличенного employee_id.
 ---
@@ -14,11 +14,9 @@ when_to_use: Главный onboarding-оркестратор делегируе
 
 Вход: `onboarding_id`, `draft_version`, `approved_version`, `employee_id`, `manager_id`, `role`, `team`, `additional_context`, `manager_feedback`, `operation_records`, `execute_authorized`.
 
-Корпоративный формат заявки задан HTML-формой Сбер Аналитики
-(`Форма заявки на предоставление прав.html`): согласование руководителем →
-далее заявитель направляет согласованный текст в `itsupport@sberanalytics.ru`.
-В этом skill автоматизируем только письмо руководителю в том же текстовом
-формате; шаг в техподдержку — вне MCP, пока не сказано иное.
+Формат тела письма — **plain text** (структура как у корпоративной заявки на доступы).
+Не прикрепляй HTML-форму, `.md` из task_drive, Excel и любые файлы.
+Автоматизируем только письмо руководителю (`to=[manager_id]`); шаг в техподдержку — вне MCP.
 
 ## Идемпотентность
 
@@ -63,7 +61,7 @@ when_to_use: Главный onboarding-оркестратор делегируе
    - mail: `mcp_gmail__gmail_verify`, `mcp_gmail__gmail_list_folders`, `mcp_gmail__gmail_list_messages`, `mcp_gmail__gmail_get_message`, `mcp_gmail__gmail_send`.
 2. Вызови `mcp_gmail__gmail_verify()` и read-only verify выбранного источника: `mcp_confluence__confluence_verify()` либо `mcp_wiki__wiki_list_pages()`.
 3. Если mail недоступен, schema несовместима или оба источника не дали валидного ответа, верни `BLOCKED` и не формируй неподтвержденную заявку.
-4. Вложения для этого этапа не требуются; `attachments` у send не используй.
+4. На этапе 1 не передавай `attachments` в gmail_send; заявка = subject + text.
 
 ## Источник
 
@@ -78,15 +76,11 @@ when_to_use: Главный onboarding-оркестратор делегируе
 
 ## Черновик
 
-Эталон корпоративной заявки — HTML-форма «Заявка на доступ»
-(`Форма заявки на предоставление прав.html`): тема письма
-`Запрос на выдачу прав.`, тело — как в `getRequestText()` формы.
+Тема: `Запрос на выдачу прав.` (+ markers). Тело — plain text по шаблону ниже.
+**Не ищи и не прикладывай** файл формы/HTML/`access_draft.md` — черновик в чате и в `text` письма достаточен.
 
-В пайплайне онбординга **не подставляй ФИО и email в черновике для HITL**:
-вместо «кому» и блока «Данные пользователя» пиши opaque id (`usr_employee`).
-Перед SMTP mail MCP сам разворачивает известные id в реальные логины/email
-в теме и теле письма; получатель видит адрес, агент — по-прежнему только id.
-Письмо уходит руководителю через mail MCP (`to=[manager_id]`), не через `mailto:`.
+В пайплайне **не подставляй ФИО и email** в HITL-черновике: opaque id.
+MCP раскрывает id в адресах при send. Получатель: `to=[manager_id]` (не `usr_hr`, не employee).
 
 Ресурс в форме — путь из трёх уровней: `Категория — Подсистема — Роль/право`
 (как в меню формы). Маппь пункты политики доступов на такие пути; если
@@ -118,22 +112,24 @@ P.S. После согласования руководителем направ
 Тема письма (для send): `Запрос на выдачу прав. [onboarding:<employee_id>] <action_marker>` —
 сохрани корпоративную формулировку и добавь маркеры идемпотентности/поиска дублей.
 
-Покажи полный список путей и готовое тело письма. Планируемое внешнее действие одно:
-`mcp_gmail__gmail_send(to=[manager_id], subject=<тема>, text=<тело выше>)`.
-HTML-форму не отправляй: тело — plain text. Вложения на этом этапе не используй (заявка текстом); Excel-вложения относятся к этапу ИС.
+В `Полный черновик` верни нумерованный список доступов (категория — подсистема — роль/право — краткое описание), полное тело письма, тему и `to=[manager_id]`, чтобы оркестратор показал их в чате.
+
+Планируемое действие одно: `mcp_gmail__gmail_send(to=[manager_id], subject, text)` без `attachments`.
 
 ## Согласование и исполнение
 
-- Если `approved_version` не совпадает с `draft_version`, не отправляй письмо; верни `AWAITING_APPROVAL`.
-- Примени `manager_feedback`, пересобери весь вариант и сохрани новую версию.
-- Сформируй action marker и operation key по разделу «Идемпотентность» этого файла; добавь action marker в тему утвержденного письма.
-- При совпадении версий сначала верни `PREPARED`, полный payload, key/hash и не вызывай send. Только в следующем запуске с подтвержденной записью `PENDING`, совпадающими key/hash/version и `execute_authorized=true` вызови `mcp_gmail__gmail_send(to=[manager_id], subject=<тема утвержденной версии>, text=<plain-text тело утвержденной версии>)`.
-- На этапе доступов вызывай send без `attachments`. Не утверждай, что файл приложен.
-- Тема должна содержать `onboarding:<employee_id>` (и action marker) для поиска дублей; базовый текст темы — `Запрос на выдачу прав.` как в корпоративной форме.
-- Успех подтвержден только если ответ содержит непустой `message_id`, `accepted` содержит `manager_id`, а `rejected` пуст. Иначе сохрани частичный/неопределенный результат и верни `BLOCKED`.
-- После timeout или неоднозначного ответа вызови `mcp_gmail__gmail_list_folders()`, однозначно определи Sent path, затем `mcp_gmail__gmail_list_messages(folder=<sent path>, since=<attempt_started_at>, limit=100)`. Сопоставь action marker, `manager_id` и время; при необходимости сравни точное тело через `mcp_gmail__gmail_get_message(folder=<sent path>, uid=<найденный uid>)`. Если Sent path или результат неоднозначен, не повторяй send и запроси ручную проверку.
-- Сохрани только безопасный `message_id`, operation key и статус.
-- Не вставляй в письмо ФИО или личные email; организация в демо — `ТОТ`, если иное не задано во входе.
+HITL только у оркестратора. Этот skill не спрашивает руководителя.
+Один вызов на draft, один на execute после OK — write в том же execute-вызове.
+
+- Если `approved_version` пуст или ≠ `draft_version`: примени `manager_feedback` при наличии, собери черновик, верни `AWAITING_APPROVAL` (без send).
+- Если `approved_version == draft_version` и `execute_authorized=false`: верни тот же черновик как `AWAITING_APPROVAL`.
+- Если `approved_version == draft_version` и `execute_authorized=true`:
+  1. Сформируй action marker + operation key/hash; marker в тему.
+  2. Если в `operation_records` уже `CONFIRMED` с тем же key — верни `EXECUTED` без повторного send.
+  3. Иначе вызови `mcp_gmail__gmail_send(to=[manager_id], subject=<тема>, text=<тело>)` — plain text, без `attachments`.
+- Тема: `Запрос на выдачу прав. [onboarding:<employee_id>] <action_marker>`.
+- Успех send: непустой `messageId`/`message_id`, `rejected` пуст, `accepted` непуст; достаточно id из `to[]` или `self` / alias shared mailbox. Sent-reconcile — только при timeout/malformed/пустом id.
+- Раскрытие opaque id → адрес в MCP штатно. Организация в демо — `ТОТ`.
 ## Выход
 
 Верни общий контракт этапа:

@@ -113,11 +113,28 @@ describe("expandIdsInText", () => {
 })
 
 describe("round-trip through send", () => {
-  it("masks accepted addresses back to the ids the agent used", () => {
+  it("returns accepted as the opaque ids the agent requested", () => {
     const obf = createObfuscator(fixtureDir())
     const { emails } = obf.resolveRecipients(["usr_1", "usr_2"])
-    const masked = obf.maskSendResult({ message_id: "x", accepted: emails, rejected: [] })
+    const masked = obf.maskSendResult(
+      { message_id: "x", accepted: emails, rejected: [] },
+      { to: ["usr_1", "usr_2"] },
+    )
     assert.deepEqual(masked.accepted, ["usr_1", "usr_2"])
+  })
+
+  it("keeps role id when demo roles share the self mailbox", () => {
+    const dir = parseRecipientsCsv(
+      ["usr_hr,me@demo.test,HR", "usr_manager,me@demo.test,Manager"].join("\n"),
+    )
+    const obf = createObfuscator(dir)
+    obf.registerSelf("me@demo.test")
+    const { emails } = obf.resolveRecipients(["usr_hr"])
+    const masked = obf.maskSendResult(
+      { messageId: "msg1", accepted: emails, rejected: [] },
+      { to: ["usr_hr"] },
+    )
+    assert.deepEqual(masked.accepted, ["usr_hr"])
   })
 })
 

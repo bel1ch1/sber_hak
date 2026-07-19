@@ -244,8 +244,12 @@ export function buildServer(): McpServer {
         bcc: bcc.emails.length ? bcc.emails : undefined,
         attachments: parsed.data.attachments,
       })
-      // Mask the accepted/rejected addresses back to IDs before returning.
-      return asText(JSON.stringify(obf.maskSendResult(result), null, 2))
+      const masked = obf.maskSendResult(result, {
+        to: parsed.data.to,
+        cc: parsed.data.cc,
+        bcc: parsed.data.bcc,
+      })
+      return asText(JSON.stringify(masked, null, 2))
     } catch (e) {
       return asText(e instanceof Error ? e.message : String(e))
     }

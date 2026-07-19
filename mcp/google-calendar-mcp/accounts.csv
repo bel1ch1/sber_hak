@@ -1,10 +1,13 @@
-# accounts.csv Ч id > email дл€ Google Calendar attendees
-# Columns: id,email,label
-id,email,label
-usr_manager,andreyzv5555@gmail.com,Manager (demo)
-usr_employee,andreyzv5555@gmail.com,New hire (demo)
-usr_hr,andreyzv5555@gmail.com,HR (demo)
-usr_buddy,andreyzv5555@gmail.com,Buddy PRIMARY
-usr_buddy_b,buddy.b@example.invalid,Buddy decoy B
-usr_buddy_c,buddy.c@example.invalid,Buddy decoy C
-usr_k1m2n3,andreyzv5555@gmail.com,Hire id alias
+# accounts.csv ? id ? email + login (display name in Google Calendar).
+# Agent sees only id; MCP writes login as attendee displayName and expands ids in title/description.
+# Columns: id,email,label,login
+id,email,label,login
+usr_manager,andreyzv5555@gmail.com,Manager (demo),Andrey Manager
+usr_employee,andreyzv5555@gmail.com,New hire (demo),New Hire
+usr_hr,andreyzv5555@gmail.com,HR (demo),HR Partner
+usr_buddy,andreyzv5555@gmail.com,Buddy PRIMARY,Buddy Lead
+usr_buddy_b,buddy.b@example.invalid,Buddy decoy B,Buddy B
+usr_buddy_c,buddy.c@example.invalid,Buddy decoy C,Buddy C
+usr_k1m2n3,andreyzv5555@gmail.com,Hire id alias,Hire K1M2N3
+usr_p8q2w4,andreyzv5555@gmail.com,Clean-recording hire id,Hire P8Q2W4
+usr_r3s7t9,andreyzv5555@gmail.com,Clean-recording hire id,Hire R3S7T9

@@ -40,16 +40,20 @@ Capability `{access_policy_read}`:
 Capability `{mail_send_by_id}`:
 
 - `mcp_gmail__gmail_send(to, subject, text, cc?, bcc?, attachments?)`.
+- Успех: непустой `messageId`/`message_id`, непустой `accepted`, пустой `rejected`.
+  `accepted` должен содержать id из `to[]` **или** `self` / другой directory id того же demo shared mailbox.
+  Не BLOCK по SENT `to=["self"]` после успешного send. Раскрытие opaque id → email на send — штатно; на чтении MCP маскирует.
 
 Capability `{mail_reconcile}`:
 
 - `mcp_gmail__gmail_list_folders()`;
 - `mcp_gmail__gmail_list_messages(folder?, limit?, since?, unseen_only?)`;
 - `mcp_gmail__gmail_get_message(folder?, uid)`.
+- Вызывай **только** после timeout / malformed / пустого message id — не после успешного send.
 
 Диагностика: `mcp_gmail__gmail_verify()`.
 
-Для reconciliation выбери Sent label из `list_folders` (`SENT`), ограничь поиск `since` временем попытки, сопоставь action marker и адресата; при необходимости сравни тело через `get_message`. `uid` — Gmail message id (строка). Отсутствие письма не разрешает автоматический повтор после неоднозначного send.
+Для reconciliation выбери Sent label из `list_folders` (`SENT`), ограничь поиск `since` временем попытки, сопоставь action marker и время; recipient collapse (`self` / другой alias shared mailbox) сам по себе не blocker. `uid` — Gmail message id (строка). Отсутствие письма не разрешает автоматический повтор после неоднозначного send.
 
 Тело письма — plain text. Опционально `attachments` (до 3 файлов `{filename, content_base64, content_type?}`, ~5 MiB, xlsx/xls/pdf/md/txt/png/jpg/jpeg/csv). Для этапа ИС вложение .xlsx обязательно, если schema send содержит `attachments`.
 
@@ -98,7 +102,7 @@ Capability `{calendar_update_attendees}`:
 
 Диагностика: `mcp_google_calendar__google_calendar_verify()`.
 
-`attendees` — opaque ID при `CALENDAR_OBFUSCATION=true`.
+`attendees` — opaque ID при `CALENDAR_OBFUSCATION=true`. При записи MCP раскрывает id → login в title/description/location и displayName; при чтении маскирует обратно в id. Поле `attendees[]` в ответах create/update/list — полный opaque roster (source of truth). Схлопывание одинаковых email в Google UI (`shared_mailbox_collapsed`) не отменяет roster.
 
 ## Этап 5 — курсы
 
@@ -132,7 +136,9 @@ Capability `{jira_plan_create}`:
 
 - тот же tool с `dry_run=false`;
 - `hire_id=employee_id`;
-- `assignee_id=employee_id`.
+- `assignee_id=employee_id` (MCP резолвит через `accounts.csv` → pinned `jira_account_id` / Bell; не email);
+- при `jira_search` агент видит только opaque `assignee_id` (не login/displayName); для label `onboarding:<hire_id>` MCP предпочитает `hire_id`, иначе любой alias того же Jira user — не требуй точного равенства hire_id вне label-контекста;
+- запрещено подменять планом из серии `jira_create_issue`.
 
 Capability `{jira_plan_rollback}`:
 
@@ -144,7 +150,9 @@ Capability `{jira_plan_rollback}`:
 - `mcp_jira__jira_get_project(project_key)`;
 - `mcp_jira__jira_search(jql)`.
 
-Отправка плана — `{mail_send_by_id}` с `attachments: [{filename, content_base64, content_type}]` (до 3 файлов, ~5 MiB). Без поддержки `attachments` у send этап `BLOCKED`. Локально сохрани также `onboarding/<id>/Цели_ИС.xlsx` и `probation-plan.md`.
+Excel: только `jira_build_probation_goals_xlsx` (`size_bytes` ≥ 8000, sheets включают «Цели»). Самодельный xlsx запрещён.
+
+Отправка плана — `{mail_send_by_id}` / `mcp_gmail__gmail_send` с `attachments: [{filename, content_base64, content_type}]` на `manager_id`. Без `attachments` этап `BLOCKED`. Локально сохрани также `onboarding/<id>/Цели_ИС.xlsx` и `probation-plan.md`.
 
 ## Отсутствующая capability
 

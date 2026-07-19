@@ -1,7 +1,7 @@
 ---
 name: onboarding_calendar
 description: Готовит согласуемый план онбординг-встреч (командные/HR/1:1), создаёт события или обновляет attendees существующих через calendar MCP с opaque IDs.
-version: 0.2.0
+version: 0.3.1
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 4 «Встречи» для нового сотрудника.
 ---
@@ -91,16 +91,18 @@ when_to_use: Главный onboarding-оркестратор делегируе
 
 ## Согласование и исполнение
 
-Полная версия перечисляет каждое действие create/update.
+HITL только у оркестратора. Полная версия перечисляет каждое create/update.
+Один draft-вызов, один execute после OK — все утверждённые write в том же запуске.
 
-- Пока `approved_version != draft_version`, не вызывай write.
-- После правок увеличь версию и покажи весь список.
-- Для каждой операции: `PREPARED` (payload + key/hash), затем при `PENDING` + `execute_authorized=true`:
+- `approved_version` пуст/≠ `draft_version` → план встреч, `AWAITING_APPROVAL`, без write. Правки → `draft_version++`.
+- `execute_authorized=false` при совпадении версий → `AWAITING_APPROVAL`.
+- `execute_authorized=true` и версии совпали: выполни все утверждённые create/update. Уже `CONFIRMED` keys — не повторяй.
   - **create:** `google_calendar_create_event(title=<с action marker>, start, duration_minutes, timezone, attendees, description + " onboarding:<employee_id>", client_token)`;
   - **update:** `google_calendar_update_event(uid, href, etag, patch={attendees:[...]})`.
 - Не передавай одновременно `duration_minutes` и `end`.
-- Успех create/update: непустые `uid`, `href`, `etag` и `invite_status` из `scheduled|scheduled_with_warnings` (второй — частичный результат + `BLOCKED` с warning, если критично).
-- После timeout: reconcile через `list_events` (title/marker/start/attendees или uid+etag); при неоднозначности не повторяй write.
+- Успех: `uid`/`href`/`etag`, `invite_status` ∈ `scheduled|scheduled_with_warnings`, opaque `attendees[]` = план.
+- `shared_mailbox_collapsed` (и один email в Google UI) не BLOCK, если roster полный. Не устраивай серии update «на всякий случай»; не ставь `attendee_propagation_unconfirmed` при совпадении roster с планом.
+- Timeout-reconcile: `list_events` по marker/uid; при неоднозначности не повторяй write.
 
 ## Выход
 

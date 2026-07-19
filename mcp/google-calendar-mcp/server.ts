@@ -30,6 +30,8 @@ import {
   obfuscationEnabled,
   resolveAttendeeIds,
   maskEmail,
+  expandIdsInText,
+  maskEventFields,
   type AccountDirectory,
 } from "./accounts.ts"
 
@@ -53,11 +55,13 @@ async function getAccounts(): Promise<AccountDirectory> {
 
 async function resolveAttendees(
   ids: string[] | undefined,
-): Promise<{ emails?: string[]; error?: string }> {
+): Promise<{ attendees?: Array<{ email: string; displayName?: string }>; error?: string }> {
   if (ids === undefined) return {}
-  if (!obfuscationEnabled()) return { emails: ids }
+  if (!obfuscationEnabled()) {
+    return { attendees: ids.map((email) => ({ email })) }
+  }
   const dir = await getAccounts()
-  const { emails, unknown } = resolveAttendeeIds(dir, ids)
+  const { attendees, unknown } = resolveAttendeeIds(dir, ids)
   if (unknown.length) {
     return {
       error:
@@ -65,15 +69,43 @@ async function resolveAttendees(
         "Pass opaque ids from accounts.csv (e.g. usr_employee, usr_buddy), not email addresses.",
     }
   }
-  return { emails }
+  return {
+    attendees: attendees.map((a) => ({ email: a.email, displayName: a.displayName })),
+  }
 }
 
-function maskEventAttendees<T extends { attendees: string[] }>(dir: AccountDirectory, events: T[]): T[] {
-  if (!obfuscationEnabled()) return events
-  return events.map((e) => ({
-    ...e,
-    attendees: e.attendees.map((a) => maskEmail(dir, a)),
-  }))
+function maskCreateResult(
+  dir: AccountDirectory,
+  result: {
+    attendees?: string[]
+    google_attendee_emails?: string[]
+    title?: string
+    description?: string
+    location?: string
+    [k: string]: unknown
+  },
+  written?: {
+    title?: string
+    description?: string
+    location?: string
+    /** Authoritative opaque roster — do not remask through email map. */
+    attendees?: string[]
+  },
+) {
+  if (!obfuscationEnabled()) return result
+  const out = { ...result }
+  if (written?.attendees) {
+    out.attendees = written.attendees
+  } else if (out.attendees) {
+    out.attendees = out.attendees.map((a) => (a.includes("@") ? maskEmail(dir, a) : a))
+  }
+  // Never expose raw Google emails to the agent (demo shared mailbox = PII leak).
+  delete out.google_attendee_emails
+  // Echo agent-facing text fields as opaque ids (as written by agent).
+  if (written?.title !== undefined) out.title = written.title
+  if (written?.description !== undefined) out.description = written.description
+  if (written?.location !== undefined) out.location = written.location
+  return out
 }
 
 async function getCreds() {
@@ -92,7 +124,12 @@ export function buildServer(): McpServer {
     "google_calendar_create_event",
     "Creates a Google Calendar event. Sends invitations to attendees. " +
       "TIME RULE: start/end ISO 8601 with offset OR naive with timezone=Europe/Moscow. " +
-      "end OR duration_minutes (default 60). PRIVACY: attendees are opaque ids from accounts.csv. " +
+      "end OR duration_minutes (default 60). " +
+      "PRIVACY: attendees are opaque ids from accounts.csv — MCP writes email + human-readable login as displayName. " +
+      "In title/description/location you may write opaque ids; MCP expands them to login before save. " +
+      "Response attendees[] is the full opaque roster (authoritative). " +
+      "If several ids share one mailbox, Google may collapse invite emails; see warning shared_mailbox_collapsed " +
+      "and google_attendee_emails. list_events returns the same opaque roster from attendee_ids. " +
       "IDEMPOTENCY: pass client_token so retries within 10 minutes don't double-book.",
     {
       title: z.string().min(1).max(200),
@@ -110,13 +147,37 @@ export function buildServer(): McpServer {
       try {
         const resolved = await resolveAttendees(args.attendees)
         if (resolved.error) return asText(resolved.error)
-        const creds = await getCreds()
-        const result = await createEvent(creds, { ...args, attendees: resolved.emails })
         const dir = await getAccounts()
-        if (result.attendees && obfuscationEnabled()) {
-          result.attendees = result.attendees.map((a) => maskEmail(dir, a))
-        }
-        return asText(JSON.stringify(result, null, 2))
+        const title = obfuscationEnabled() ? expandIdsInText(dir, args.title) : args.title
+        const description =
+          args.description !== undefined && obfuscationEnabled()
+            ? expandIdsInText(dir, args.description)
+            : args.description
+        const location =
+          args.location !== undefined && obfuscationEnabled()
+            ? expandIdsInText(dir, args.location)
+            : args.location
+        const creds = await getCreds()
+        const result = await createEvent(creds, {
+          ...args,
+          title,
+          description,
+          location,
+          attendees: resolved.attendees,
+          attendee_ids: args.attendees,
+        })
+        return asText(
+          JSON.stringify(
+            maskCreateResult(dir, result, {
+              title: args.title,
+              description: args.description,
+              location: args.location,
+              attendees: args.attendees,
+            }),
+            null,
+            2,
+          ),
+        )
       } catch (e) {
         return asText(e instanceof Error ? e.message : String(e))
       }
@@ -126,7 +187,9 @@ export function buildServer(): McpServer {
   server.tool(
     "google_calendar_list_events",
     "Lists Google Calendar events in a time range. ALWAYS pass range_start and range_end (ISO 8601). " +
-      "Max range: 366 days. Recurring masters returned with is_recurring=true (not expanded).",
+      "Max range: 366 days. Recurring masters returned with is_recurring=true (not expanded). " +
+      "PRIVACY: attendees/title/description/location are masked back to opaque ids. " +
+      "attendees[] is the authoritative opaque roster (from stored attendee_ids when present).",
     {
       range_start: z.string(),
       range_end: z.string(),
@@ -145,7 +208,8 @@ export function buildServer(): McpServer {
         const creds = await getCreds()
         const events = await listEvents(creds, mapped)
         const dir = await getAccounts()
-        return asText(JSON.stringify(maskEventAttendees(dir, events), null, 2))
+        const out = obfuscationEnabled() ? maskEventFields(dir, events) : events
+        return asText(JSON.stringify(out, null, 2))
       } catch (e) {
         return asText(e instanceof Error ? e.message : String(e))
       }
@@ -155,7 +219,10 @@ export function buildServer(): McpServer {
   server.tool(
     "google_calendar_update_event",
     "Updates a Google Calendar event. Pass uid, href, etag from create/list. " +
-      "patch.attendees = full opaque-id replacement when CALENDAR_OBFUSCATION=true. " +
+      "patch.attendees = full opaque-id replacement when CALENDAR_OBFUSCATION=true " +
+      "(MCP expands to email+login displayName). " +
+      "patch title/description/location: opaque ids expanded to login before save. " +
+      "Response attendees[] is the full opaque roster (authoritative). " +
       "Recurring events rejected.",
     {
       uid: z.string(),
@@ -177,18 +244,43 @@ export function buildServer(): McpServer {
     async (args) => {
       try {
         const creds = await getCreds()
-        let patch = args.patch
+        const dir = await getAccounts()
+        const patch: {
+          title?: string
+          start?: string
+          end?: string
+          timezone?: string
+          description?: string
+          location?: string
+          reminder_minutes?: number | null
+          attendees?: Array<{ email: string; displayName?: string }>
+          attendee_ids?: string[]
+        } = { ...args.patch }
+
         if (args.patch.attendees !== undefined) {
           const resolved = await resolveAttendees(args.patch.attendees)
           if (resolved.error) return asText(resolved.error)
-          patch = { ...args.patch, attendees: resolved.emails ?? [] }
+          patch.attendees = resolved.attendees
+          patch.attendee_ids = args.patch.attendees
+        }
+        if (obfuscationEnabled()) {
+          if (patch.title !== undefined) patch.title = expandIdsInText(dir, patch.title)
+          if (patch.description !== undefined) patch.description = expandIdsInText(dir, patch.description)
+          if (patch.location !== undefined) patch.location = expandIdsInText(dir, patch.location)
         }
         const result = await updateEvent(creds, { ...args, patch })
-        const dir = await getAccounts()
-        if (result.attendees && obfuscationEnabled()) {
-          result.attendees = result.attendees.map((a) => maskEmail(dir, a))
-        }
-        return asText(JSON.stringify(result, null, 2))
+        return asText(
+          JSON.stringify(
+            maskCreateResult(dir, result, {
+              title: args.patch.title,
+              description: args.patch.description,
+              location: args.patch.location,
+              attendees: args.patch.attendees,
+            }),
+            null,
+            2,
+          ),
+        )
       } catch (e) {
         return asText(e instanceof Error ? e.message : String(e))
       }

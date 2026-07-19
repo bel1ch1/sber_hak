@@ -1,7 +1,7 @@
 ---
 name: onboarding_probation
 description: Собирает цели на испытательный срок по корпоративной Excel-форме, показывает таблицу руководителю, создаёт задачи в Jira и отправляет утверждённый план письмом с вложением .xlsx.
-version: 0.2.1
+version: 0.3.1
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 6 «План испытательного срока» для нового сотрудника.
 ---
@@ -91,7 +91,7 @@ when_to_use: Главный onboarding-оркестратор делегируе
 
 ## Preview
 
-1. Собери Excel-цели:
+1. Собери Excel-цели **только** через MCP (не собирай xlsx вручную / openpyxl / «local generated»):
 
 ```text
 mcp_jira__jira_build_probation_goals_xlsx(
@@ -104,7 +104,10 @@ mcp_jira__jira_build_probation_goals_xlsx(
 )
 ```
 
-2. Собери Jira-preview тех же целей:
+Критерии валидного файла: ответ `ok=true`, непустой `content_base64`, `filename` вида `Цели_ИС_*.xlsx`, `size_bytes` ≥ 8000.
+Если size меньше или base64 пуст — `BLOCKED`, не подставляй самодельный workbook.
+
+2. Собери Jira-preview тех же целей **только** через:
 
 ```text
 mcp_jira__jira_create_onboarding_plan(
@@ -118,15 +121,18 @@ mcp_jira__jira_create_onboarding_plan(
 )
 ```
 
+Запрещено для плана ИС: `jira_create_issue` / bulk самодельных issues вместо `jira_create_onboarding_plan`.
+В preview проверь блок `assignee` без `warning`. Если warning — `BLOCKED` (нужен `jira_account_id` в MCP accounts.csv).
+
 3. В «Полный черновик» для оркестратора (и далее в чат руководителю) покажи **только**:
    - метаданные: роль, команда, даты ИС, контрольные точки 6/12 недели;
    - таблицу целей: Задача | Ожидаемый результат | Срок | Вес;
    - итог весов и примечание про порог ≥90%;
-   - будущий Epic и список Jira-задач;
-   - имя файла Excel и факт, что письмо уйдёт с вложением;
+   - будущий Epic и список Jira-задач + opaque `assignee_id`;
+   - имя файла Excel из MCP и факт, что письмо уйдёт с вложением;
    - единый список внешних действий (Jira create + mail send с xlsx).
 
-Не вставляй `content_base64` в черновик чата. Сохрани workbook через файловый tool: `root="task_drive"`, путь `onboarding/<onboarding_id>/Цели_ИС.xlsx` (декодируй base64). Если `task_drive` недоступен — запроси artifact root.
+Не вставляй `content_base64` в черновик чата. Сохрани workbook через файловый tool: `root="task_drive"`, путь `onboarding/<onboarding_id>/<filename из MCP>` (декодируй base64 как есть). Дублируй коротким именем `onboarding/<onboarding_id>/Цели_ИС.xlsx` тем же содержимым. Если `task_drive` недоступен — запроси artifact root.
 
 Если `preview.weight_ok` = false — отметь предупреждение руководителю, но не блокируй preview.
 
@@ -163,30 +169,19 @@ Epic + задачи из утвержденного preview
 
 ## Согласование и исполнение
 
-- Пока `approved_version != draft_version`, не создавай Jira issues и не отправляй письмо.
-- После правок увеличь версию и покажи весь план снова (таблица + действия).
-- При совпадении версий сначала `mcp_jira__jira_search(jql="project = <project_key> AND labels = \"onboarding:<employee_id>\"")`.
-- Сформируй Jira operation key → `PREPARED` без write.
-- Только при `execute_authorized=true` и PENDING с совпадающими key/hash/version: `jira_create_onboarding_plan(..., dry_run=false, assignee_id=<employee_id>)`.
-- Полный успех Jira — Epic + ожидаемые issue IDs. При `already_exists` сверь через search; assignee через search не подтверждается.
-- После Jira: пересобери Excel той же версии (`jira_build_probation_goals_xlsx`) либо используй сохранённый base64 утверждённой версии; тема с action marker; тело — plain-text таблица целей (без base64).
-- Mail `PREPARED`, затем при authorize:
+HITL только у оркестратора. Один draft-вызов, один execute после OK.
 
-```text
-mcp_gmail__gmail_send(
-  to=[manager_id],
-  subject=<тема с action marker>,
-  text=<plain-text план>,
-  attachments=[{
-    "filename": "<filename из preview>",
-    "content_base64": "<из jira_build_probation_goals_xlsx>",
-    "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  }]
-)
-```
-
-- Успех письма: непустой `message_id`, `accepted` содержит `manager_id`, `rejected` пуст; желательно `attachment_names` содержит имя xlsx. При timeout — reconciliation через Sent + action marker; при неоднозначности не повторяй send.
-- При успехе Jira и ошибке почты — частичный результат, `BLOCKED`, Jira не повторяй.
+- Без совпадения версий / без `execute_authorized` → таблица целей + dry_run Jira preview, `AWAITING_APPROVAL`, без create/send.
+- При `execute_authorized=true` и совпадении версий — в одном запуске:
+  1. `jira_search` по `onboarding:<employee_id>` (идемпотентность).
+  2. `jira_create_onboarding_plan(..., dry_run=false, assignee_id=<employee_id>)` если плана ещё нет.
+     Assignee резолвится MCP через `accounts.csv` (`jira_account_id`).
+  3. Успех Jira: `created=true` + Epic/issues + `assignee` без warning **или** `already_exists` с непустым `existing`. Не требуй search `assignee_id == hire_id`.
+  4. Excel той же версии (сохранённый base64 или повторный `jira_build_probation_goals_xlsx`).
+  5. `gmail_send(to=[manager_id], subject с marker, text=таблица, attachments=[xlsx])`.
+- Уже `CONFIRMED` keys — не повторяй. План ИС создавай только через `jira_create_onboarding_plan` (не серией `jira_create_issue`).
+- Успех mail: `messageId` + непустой `accepted` + пустой `rejected` (`manager_id` или `self`/shared-mailbox alias); желательно xlsx в `attachment_names`.
+- Jira ok + mail fail → частичный `BLOCKED`, Jira не повторяй. Sent-reconcile только timeout.
 
 ## Повторный тест / очистка Jira
 

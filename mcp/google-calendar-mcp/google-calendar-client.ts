@@ -12,7 +12,13 @@ export type CreateResult = {
   etag: string
   invite_status: "scheduled" | "scheduled_with_warnings"
   warnings?: string[]
+  /** Opaque attendee ids for the agent (authoritative roster). */
   attendees?: string[]
+  /**
+   * Emails actually accepted by Google Calendar API (may be fewer than opaque ids
+   * when several ids share one mailbox in demo).
+   */
+  google_attendee_emails?: string[]
 }
 
 export type ListedEvent = {
@@ -28,6 +34,8 @@ export type ListedEvent = {
   transparency?: string
   description?: string
   location?: string
+  /** Opaque ids stored at create (preferred when emails collide). */
+  attendee_ids?: string[]
 }
 
 function oauth2(creds: GoogleCredentials) {
@@ -69,6 +77,10 @@ function mapEvent(ev: calendar_v3.Schema$Event, calendarId: string): ListedEvent
   if (!ev.id) return null
   const start = ev.start?.dateTime || (ev.start?.date ? `${ev.start.date}T00:00:00Z` : "")
   const end = ev.end?.dateTime || (ev.end?.date ? `${ev.end.date}T00:00:00Z` : "")
+  const storedIds = (ev.extendedProperties?.private?.attendee_ids || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
   return {
     uid: ev.id,
     href: ev.htmlLink || eventHref(calendarId, ev.id),
@@ -82,6 +94,7 @@ function mapEvent(ev: calendar_v3.Schema$Event, calendarId: string): ListedEvent
     transparency: ev.transparency || undefined,
     description: ev.description || undefined,
     location: ev.location || undefined,
+    ...(storedIds.length ? { attendee_ids: storedIds } : {}),
   }
 }
 
@@ -159,11 +172,35 @@ export type CreateInput = {
   end?: string
   duration_minutes?: number
   timezone?: string
-  attendees?: string[]
+  /** Resolved emails, optionally with displayName (login). */
+  attendees?: Array<string | { email: string; displayName?: string }>
+  /** Opaque ids for reverse masking when emails collide. */
+  attendee_ids?: string[]
   description?: string
   location?: string
   reminder_minutes?: number | null
   client_token?: string
+}
+
+function toAttendeeObjects(
+  attendees: CreateInput["attendees"],
+): Array<{ email: string; displayName?: string }> | undefined {
+  if (!attendees?.length) return undefined
+  // Google Calendar collapses duplicate emails to one attendee. Dedupe for API,
+  // merge displayNames so the UI still shows human-readable roster.
+  const byEmail = new Map<string, { email: string; names: string[] }>()
+  for (const a of attendees) {
+    const email = (typeof a === "string" ? a : a.email).trim().toLowerCase()
+    if (!email) continue
+    const name = typeof a === "string" ? undefined : a.displayName?.trim()
+    const cur = byEmail.get(email) || { email, names: [] }
+    if (name && !cur.names.includes(name)) cur.names.push(name)
+    byEmail.set(email, cur)
+  }
+  return [...byEmail.values()].map((v) => ({
+    email: v.email,
+    ...(v.names.length ? { displayName: v.names.join(", ") } : {}),
+  }))
 }
 
 export async function createEvent(creds: GoogleCredentials, input: CreateInput): Promise<CreateResult> {
@@ -196,17 +233,31 @@ export async function createEvent(creds: GoogleCredentials, input: CreateInput):
     const existing = q.data.items?.[0]
     if (existing?.id) {
       const mapped = mapEvent(existing, creds.calendarId)!
+      const opaque = mapped.attendee_ids?.length
+        ? mapped.attendee_ids
+        : input.attendee_ids?.length
+          ? input.attendee_ids
+          : mapped.attendees
       const result: CreateResult = {
         uid: mapped.uid,
         href: mapped.href,
         etag: mapped.etag,
         invite_status: "scheduled",
         warnings: ["idempotent_hit: existing event for client_token"],
-        attendees: mapped.attendees,
+        attendees: opaque,
+        google_attendee_emails: mapped.attendees,
       }
       createCache.set(input.client_token, { at: Date.now(), result })
       return result
     }
+  }
+
+  const attendeeObjs = toAttendeeObjects(input.attendees)
+  const privateProps: Record<string, string> = {}
+  if (input.client_token) privateProps.client_token = input.client_token
+  // Preserve agent-facing opaque ids for list masking when emails collide (demo shared mailbox).
+  if (input.attendee_ids?.length) {
+    privateProps.attendee_ids = input.attendee_ids.join(",")
   }
 
   const body: calendar_v3.Schema$Event = {
@@ -221,10 +272,8 @@ export async function createEvent(creds: GoogleCredentials, input: CreateInput):
       dateTime: toRfc3339(endDate),
       timeZone: input.timezone || "Europe/Moscow",
     },
-    attendees: input.attendees?.map((email) => ({ email })),
-    extendedProperties: input.client_token
-      ? { private: { client_token: input.client_token } }
-      : undefined,
+    attendees: attendeeObjs,
+    extendedProperties: Object.keys(privateProps).length ? { private: privateProps } : undefined,
     reminders:
       input.reminder_minutes == null
         ? undefined
@@ -243,13 +292,32 @@ export async function createEvent(creds: GoogleCredentials, input: CreateInput):
   const mapped = mapEvent(inserted.data, creds.calendarId)
   if (!mapped) throw new Error("CreateFailed: Google Calendar returned no event id")
 
+  // Prefer the opaque roster we persisted; Google may collapse same-email invitees.
+  const opaqueAttendees = input.attendee_ids?.length
+    ? input.attendee_ids
+    : mapped.attendee_ids?.length
+      ? mapped.attendee_ids
+      : mapped.attendees
+
+  if (
+    input.attendee_ids &&
+    input.attendee_ids.length > 1 &&
+    new Set((attendeeObjs || []).map((a) => a.email.toLowerCase())).size < input.attendee_ids.length
+  ) {
+    warnings.push(
+      "shared_mailbox_collapsed: multiple opaque ids map to fewer Google emails; " +
+        "authoritative roster is attendees[] / extendedProperties.attendee_ids",
+    )
+  }
+
   const result: CreateResult = {
     uid: mapped.uid,
     href: mapped.href,
     etag: mapped.etag,
     invite_status: warnings.length ? "scheduled_with_warnings" : "scheduled",
     warnings: warnings.length ? warnings : undefined,
-    attendees: mapped.attendees,
+    attendees: opaqueAttendees,
+    google_attendee_emails: mapped.attendees,
   }
   if (input.client_token) createCache.set(input.client_token, { at: Date.now(), result })
   return result
@@ -267,7 +335,9 @@ export type UpdateInput = {
     description?: string
     location?: string
     reminder_minutes?: number | null
-    attendees?: string[]
+    attendees?: Array<string | { email: string; displayName?: string }>
+    /** Opaque ids for reverse masking when emails collide. */
+    attendee_ids?: string[]
   }
 }
 
@@ -292,7 +362,16 @@ export async function updateEvent(creds: GoogleCredentials, input: UpdateInput):
   if (patch.description !== undefined) body.description = patch.description
   if (patch.location !== undefined) body.location = patch.location
   if (patch.attendees !== undefined) {
-    body.attendees = patch.attendees.map((email) => ({ email }))
+    body.attendees = toAttendeeObjects(patch.attendees)
+  }
+  if (patch.attendee_ids?.length) {
+    body.extendedProperties = {
+      ...(body.extendedProperties || {}),
+      private: {
+        ...(body.extendedProperties?.private || {}),
+        attendee_ids: patch.attendee_ids.join(","),
+      },
+    }
   }
 
   const curStart = existing.data.start?.dateTime
@@ -332,12 +411,31 @@ export async function updateEvent(creds: GoogleCredentials, input: UpdateInput):
 
   const mapped = mapEvent(updated.data, creds.calendarId)
   if (!mapped) throw new Error("UpdateFailed: no event id")
+  const warnings: string[] = []
+  const opaqueAttendees = patch.attendee_ids?.length
+    ? patch.attendee_ids
+    : mapped.attendee_ids?.length
+      ? mapped.attendee_ids
+      : mapped.attendees
+  if (
+    patch.attendee_ids &&
+    patch.attendee_ids.length > 1 &&
+    new Set((toAttendeeObjects(patch.attendees) || []).map((a) => a.email.toLowerCase())).size <
+      patch.attendee_ids.length
+  ) {
+    warnings.push(
+      "shared_mailbox_collapsed: multiple opaque ids map to fewer Google emails; " +
+        "authoritative roster is attendees[] / extendedProperties.attendee_ids",
+    )
+  }
   return {
     uid: mapped.uid,
     href: mapped.href,
     etag: mapped.etag,
-    invite_status: "scheduled",
-    attendees: mapped.attendees,
+    invite_status: warnings.length ? "scheduled_with_warnings" : "scheduled",
+    warnings: warnings.length ? warnings : undefined,
+    attendees: opaqueAttendees,
+    google_attendee_emails: mapped.attendees,
   }
 }
 

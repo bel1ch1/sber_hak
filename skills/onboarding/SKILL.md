@@ -1,7 +1,7 @@
 ---
 name: onboarding
 description: "Оркестрирует полный MVP-онбординг нового сотрудника: распознаёт стартовый запрос, подтверждает запуск, последовательно делегирует шесть этапов субагентам и управляет HITL-согласованиями."
-version: 0.4.4
+version: 0.5.3
 type: instruction
 when_to_use: Руководитель сообщает о новом сотруднике с обезличенным ID, ролью и командой или явно просит запустить полный онбординг. Не применять для простого запроса статуса или справочного вопроса.
 ---
@@ -10,13 +10,40 @@ when_to_use: Руководитель сообщает о новом сотру�
 
 ## Роль
 
-Ты — единственная точка общения с руководителем и владелец состояния процесса. При наличии в task capability map / pipeline rules используй их как справочный контекст, но исполняй только контракт этого файла и этапных skills; не требуй внешних файлов для вычисления ключей.
+Ты — единственная точка общения с руководителем и владелец состояния. Делегируй предметную логику этапным skills через `schedule_subagent` с минимальным state package. Не передавай субагенту всю историю чата. Не выполняй этапную логику сам.
 
-Не выполняй предметную логику этапов самостоятельно: делегируй ее соответствующему этапному skill через отдельный bounded subagent. Не передавай субагенту всю историю чата.
+SSOT поведения: `ONBOARDING_AGENT_PROMPTS.md` + этот skill. Capability map / pipeline rules — справочно.
+
+## HITL-карта (только эти остановки)
+
+Руководителя спрашивай **только** здесь:
+
+| # | Когда | Что нужно от руководителя |
+|---|--------|---------------------------|
+| 0 | Старт | Подтвердить запуск с извлечёнными полями |
+| 1 | Доступы | OK / правки черновика заявки |
+| 2 | Бадди | Выбор `buddy_id` + OK письма |
+| 3 | Welcome | **ничего** — auto-send после этапа 2 |
+| 4 | Встречи | OK / правки плана встреч |
+| 5 | Курсы | OK / правки списка курсов |
+| 6 | ИС | OK / правки целей + Jira/xlsx плана |
+
+Между этапами **не** спрашивай «продолжать?». После `EXECUTED` этапа N в том же ходе сразу готовь и показывай черновик следующего HITL-этапа (после этапа 2: сначала auto welcome, затем черновик встреч).
+
+Старт и OK на доступы — разные шаги: после «запускай» покажи полный черновик этапа 1 и жди отдельный OK.
+
+## Скорость
+
+- Один subagent-вызов на **draft**, один на **execute** после OK (write в execute-вызове; без цепочки PREPARED→PENDING→execute).
+- Preflight discovery/verify — **один раз** при входе в task, не на каждом этапе.
+- `state.json`: один read → один bulk-write на переход.
+- Короткие ответы: статус / черновик / один вопрос. Без пересказа skills.
+- Mail: `messageId` + непустой `accepted` + пустой `rejected` = успех; `accepted=["self"]` на shared mailbox — не BLOCK.
+- Calendar: opaque `attendees[]` + warning `shared_mailbox_collapsed` — не BLOCK.
+- Артефакты только `root="task_drive"`. Этап 6: только `jira_build_probation_goals_xlsx` + `jira_create_onboarding_plan`.
+- Письма: этап 1 → `manager_id` **без attachments**; 2 → buddy; 3/5 → employee; 6 → manager + xlsx.
 
 ## Классификация триггера
-
-Верни внутренний структурированный результат:
 
 ```json
 {
@@ -31,87 +58,47 @@ when_to_use: Руководитель сообщает о новом сотру�
 }
 ```
 
-Few-shot (кратко; полный набор — `workspace/examples/onboarding-trigger-fewshot.md` и §1.2 `ONBOARDING_AGENT_PROMPTS.md`):
+Обязательные поля: `employee_id`, `role`, `team`. `manager_id` — из доверенного контекста (`usr_manager` в демо). `start_date` можно запросить позже (календарь/ИС). Не проси PII. При `AMBIGUOUS` — один вопрос по всем missing fields.
 
-**START_ONBOARDING**
-- «У нас новый сотрудник usr_k1m2n3, backend-разработчик в команде платежей»
-- «Запусти онбординг для emp_9f3c, роль QA-инженер, команда платформа, дата выхода 2026-08-03»
-- «К нам в команду роста выходит product manager usr_pm77 — оформи полный онбординг»
-
-**NOT_ONBOARDING**
-- «Какие доступы нужны backend-разработчику?»
-- «Как идет онбординг usr_k1m2n3?»
-- «Напомни этапы онбординга в MVP»
-- «В текущем онбординге usr_k1m2n3 смени бадди на usr_b9»
-
-**AMBIGUOUS**
-- «К нам выходит новый аналитик» → нет `employee_id`, `team`
-- «Запусти онбординг для usr_x9» → нет `role`, `team`
-- «Оформи онбординг: роль дата-инженер, команда DWH» → нет `employee_id`
-
-Обязательные поля: `employee_id`, `role`, `team`. `manager_id` возьми из доверенного контекста приложения; для настроенного MVP-каталога это `usr_manager`. `start_date` можно запросить позже.
-
-Не проси персональные данные. При `AMBIGUOUS` задай один вопрос обо всех недостающих обязательных полях.
-
-## Подтверждение запуска
+## Подтверждение запуска (HITL #0)
 
 При `START_ONBOARDING`:
 
 1. Создай `onboarding_id`.
-2. Покажи `employee_id`, роль, команду, опциональные дату и безопасный контекст.
-3. Перечисли шесть этапов.
-4. Спроси: «Запустить онбординг с этими данными?»
-5. Зафиксируй `TRIGGER_CONFIRMATION_REQUESTED`.
+2. Покажи поля + кратко шесть этапов.
+3. Спроси: «Запустить онбординг с этими данными?»
+4. До ответа — без MCP и без task-write side effects.
 
-До ответа не вызывай MCP и не промотируй процесс в исполняющий task.
+При согласии → `TRIGGER_CONFIRMED`, работай в task, состояние в `root="task_drive"` → `onboarding/<onboarding_id>/state.json`. При отказе → `TRIGGER_REJECTED`, стоп.
 
-При согласии зафиксируй `TRIGGER_CONFIRMED` и продолжи только в task. Состояние сохраняй файловым tool только в разрешенном root текущей задачи: `root="task_drive"`, относительный путь `onboarding/<onboarding_id>/state.json`. Если `task_drive` недоступен, запроси разрешенный artifact root; не используй абсолютный путь. При отказе зафиксируй `TRIGGER_REJECTED` и заверши запуск без side effects.
+## Preflight (один раз)
 
-## Preflight task
+1. Capability map + omission manifest.
+2. Сверь schemas tools текущего стека (gmail, calendar, buddy, stepik, jira, wiki/confluence).
+3. При `ephemeral_turn` — попроси task; не симулируй MCP.
+4. Инициализируй этап 1 `NEEDS_DATA` и сразу делегируй draft доступов.
 
-В task:
+## Этапы
 
-1. Прочитай capability map.
-2. Проверь omission manifest и наличие tools для текущего этапа.
-3. Сверь фактические tool schemas с аргументами этапного skill.
-4. Для внешних систем выполни только предусмотренные этапным skill дешевые read-only verify/get проверки.
-5. Не вызывай отсутствующий tool по догадке.
-6. Инициализируй статус первого этапа `NEEDS_DATA`.
-7. Если tools текущего этапа отсутствуют, schema несовместима либо read-only verify вернул ошибку, зафиксируй этап как `BLOCKED` с точной причиной, не запускай write-субагента и не переходи дальше.
+1. `onboarding_access` — политика + письмо `manager_id` (**HITL**); send **без** `attachments`
+2. `buddy_matching` — топ-3, выбор, письмо buddy (**HITL**)
+3. `onboarding_welcome` — fixed template, **auto** (`execute_authorized=true`)
+4. `onboarding_calendar` — create/update встреч (**HITL**)
+5. `onboarding_courses` — recommend + enroll + письмо employee (**HITL**)
+6. `onboarding_probation` — xlsx preview + Jira plan + письмо manager (**HITL**)
 
-Если MCP исключены из-за `ephemeral_turn`, предложи пользователю промотировать чат в task; не симулируй MCP и не помечай этап как `EXECUTED`.
+### Цикл этапа с HITL (1, 2, 4, 5, 6)
 
-## Этапы и skills
+1. `schedule_subagent` этапного skill: `execute_authorized=false`, нужный `draft_version` / `manager_feedback`.
+2. Покажи руководителю **полный черновик в сообщении чата** + список внешних действий. Спроси OK/правки. **Стоп.**
+3. Правки → `draft_version++`, снова шаг 1–2.
+4. Явное OK текущей версии → **один** вызов с `approved_version=<N>` и `execute_authorized=true`.
+5. При `EXECUTED` обнови state и сразу покажи draft следующего HITL-этапа (после 2: welcome auto → draft встреч). Не спрашивай «продолжать?».
+6. `BLOCKED` / `NEEDS_DATA` → один вопрос/причина, не иди дальше.
 
-Исполняй строго по порядку:
+### Welcome (этап 3)
 
-1. `onboarding_access` — доступы (политика Wiki/Confluence) и письмо руководителю.
-2. `buddy_matching` — топ-3, выбор и письмо бадди.
-3. `onboarding_welcome` — фиксированное приветственное письмо (без отдельного HITL после запуска пайплайна).
-4. `onboarding_calendar` — онбординг-встречи: create и/или update attendees существующих.
-5. `onboarding_courses` — курсы Stepik + mock `stepik_enroll` + письмо сотруднику.
-6. `onboarding_probation` — Excel «Цели на ИС» (таблица в чат) + Jira Epic/задачи + письмо с вложением `.xlsx`. Для повторного теста Jira: `jira_rollback_plan`.
-
-Для каждого этапа:
-
-1. Сформируй минимальный state package.
-2. Запусти отдельный `schedule_subagent` с именем этапного skill, требованием прочитать его инструкции и запретом выходить за этап.
-3. Получи результат по общему контракту.
-4. Проверь отсутствие персональных данных и неподтвержденных side effects.
-5. Если этап вернул `BLOCKED` или `NEEDS_DATA`, покажи причину/недостающие поля руководителю и не переходи к следующему этапу.
-6. Покажи руководителю полный черновик и все внешние действия этапа.
-7. При правках увеличь `draft_version` и запусти новый bounded subagent того же этапа с правками и предыдущей версией.
-8. При явном подтверждении передай тому же этапу `approved_version`.
-9. Получи от этапа `PREPARED`, operation key и payload hash без write-вызова.
-10. Двухфазный write-протокол (самодостаточен в этом pack):
-    1) атомарно сохрани operation record `PENDING` с `attempt_started_at`, key и payload hash в `onboarding/<onboarding_id>/state.json` (`root="task_drive"`);
-    2) повторно вызови этап с этой записью и `execute_authorized=true`;
-    3) этап выполняет ровно один write только при совпадении key/hash/version;
-    4) атомарно сохрани `CONFIRMED`, `FAILED` либо `UNKNOWN` и безопасные ID.
-11. При существующем `PENDING/UNKNOWN` сначала выполни reconciliation через этапный skill, не разрешай новый write.
-12. Переходи дальше только при `EXECUTED`. При `FAILED`/`UNKNOWN` после reconciliation оставь этап `BLOCKED` до ручного решения.
-
-Исключение — `onboarding_welcome`: подтверждение запуска пайплайна разрешает автоматическую отправку неизмененного фиксированного шаблона. Покажи руководителю только результат.
+Без показа текста письма. Один subagent-вызов с `execute_authorized=true`, version `fixed-1`. Краткий отчёт «отправлено» + сразу draft встреч.
 
 ## State package субагента
 
@@ -126,15 +113,17 @@ Few-shot (кратко; полный набор — `workspace/examples/onboardi
   "role": "...",
   "team": "...",
   "start_date": null,
+  "timezone": null,
+  "hr_id": null,
+  "project_key": null,
   "additional_context": null,
   "manager_feedback": null,
+  "selected_buddy_id": null,
   "available_tools": [],
   "operation_records": [],
   "execute_authorized": false
 }
 ```
-
-Не добавляй полную историю чата, email, ФИО, секреты и данные других этапов без необходимости.
 
 ## Контракт результата этапа
 
@@ -151,16 +140,6 @@ Few-shot (кратко; полный набор — `workspace/examples/onboardi
 Следующий шаг:
 ```
 
-## Правило согласования
-
-Одно явное подтверждение утверждает только показанную версию и все перечисленные в ней действия этапа. Любая правка аннулирует прежнее подтверждение. Не трактуй молчание, «посмотрим» и неоднозначный ответ как согласие.
-
 ## Завершение
 
-После шестого этапа:
-
-1. Покажи обезличенную сводку статусов и operation IDs.
-2. Честно перечисли ограничения и незавершенные действия (в т.ч. mock enroll ≠ Stepik.org; Excel ушёл вложением).
-3. Запиши outcome card файловым tool только в разрешенный root текущей задачи: `root="task_drive"`, относительный путь `onboarding/<onboarding_id>/outcome.md`.
-4. Не включай персональные данные и внутренние рассуждения.
-5. Если руководитель просит «почистить и повторить» этап 6 — делегируй `jira_rollback_plan` через probation skill / прямой tool, затем новый draft.
+После этапа 6: обезличенная сводка + `outcome.md` в `task_drive`. Честно укажи mock enroll / ограничения. Rollback Jira по просьбе — через `jira_rollback_plan`.

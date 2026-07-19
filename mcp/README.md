@@ -47,11 +47,11 @@ docker compose up -d --build
 | yandex-mail | **да** (`MAIL_OBFUSCATION`) | `recipients.csv` | `to: ["usr_manager"]` |
 | gmail | **да** (`MAIL_OBFUSCATION`) | `recipients.csv` | `to: ["usr_manager"]` |
 | yandex-calendar | **да** (`CALENDAR_OBFUSCATION`) | `accounts.csv` | `attendees: ["usr_employee","usr_buddy"]` |
-| jira | **да** | `accounts.csv` | `assignee_id` / `hire_id` → Jira accountId |
+| jira | **да** | `accounts.csv` (+ `jira_account_id`) | `assignee_id` / `hire_id` → pinned Jira accountId |
 | buddy | **да** | `accounts.csv` | ответы только с `buddy_id` |
 | confluence | **нет user-id в tools** | — | чтение/поиск страниц, без назначения людей |
 
-Demo-логины: почта/календарь (`usr_manager`, `usr_employee`, `usr_hr`, `usr_buddy`, `usr_k1m2n3`, …) → один ящик `zvetshl@yandex.ru`; Jira assignee → `andreyzv5555@gmail.com`. Агент видит только opaque id. PRIMARY buddy всегда `usr_buddy`.
+Demo-логины: почта/календарь/buddy/jira (`usr_manager`, `usr_employee`, `usr_hr`, `usr_buddy`, `usr_k1m2n3`, …) → `andreyzv5555@gmail.com` / Jira displayName **Bell** (pinned `jira_account_id`). Jira MCP при чтении маскирует assignee/email/displayName → opaque id. Auth-токен сайта может быть другим email — на assignee это не влияет. Декой buddy → `*.invalid`. PRIMARY buddy всегда `usr_buddy`.
 
 **Без `*_verify` (нет внешнего API):** `wiki-mock-mcp`, `stepik-mcp`.
 

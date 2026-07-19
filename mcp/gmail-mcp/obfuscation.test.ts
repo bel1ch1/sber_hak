@@ -112,40 +112,116 @@ describe("expandIdsInText", () => {
   })
 })
 
+describe("maskIdsInText", () => {
+  it("reverse-masks known emails in subject/body back to ids", () => {
+    const obf = createObfuscator(fixtureDir())
+    const expanded = obf.expandIdsInText(
+      "Прошу согласовать (кому): usr_1\nСотрудник (id): usr_2\n[onboarding:usr_1]",
+    )
+    assert.equal(
+      obf.maskIdsInText(expanded),
+      "Прошу согласовать (кому): usr_1\nСотрудник (id): usr_2\n[onboarding:usr_1]",
+    )
+  })
+
+  it("is case-insensitive for emails", () => {
+    const obf = createObfuscator(fixtureDir())
+    assert.equal(obf.maskIdsInText("To: Ivan@Yandex.RU please"), "To: usr_1 please")
+  })
+
+  it("maps self mailbox to self after registerSelf", () => {
+    const obf = createObfuscator(fixtureDir())
+    obf.registerSelf("me@yandex.ru")
+    assert.equal(obf.maskIdsInText("from me@yandex.ru mailbox"), "from self mailbox")
+  })
+
+  it("masks observed ext_ emails in body", () => {
+    const obf = createObfuscator(fixtureDir())
+    const token = obf.maskAddress("stranger@example.com")
+    assert.equal(obf.maskIdsInText("ping stranger@example.com now"), `ping ${token} now`)
+  })
+
+  it("leaves unknown emails unchanged", () => {
+    const obf = createObfuscator(fixtureDir())
+    assert.equal(obf.maskIdsInText("mail other@corp.test"), "mail other@corp.test")
+  })
+})
+
 describe("round-trip through send", () => {
-  it("masks accepted addresses back to the ids the agent used", () => {
+  it("returns accepted as the opaque ids the agent requested", () => {
     const obf = createObfuscator(fixtureDir())
     const { emails } = obf.resolveRecipients(["usr_1", "usr_2"])
-    const masked = obf.maskSendResult({ message_id: "x", accepted: emails, rejected: [] })
+    const masked = obf.maskSendResult(
+      { messageId: "x", accepted: emails, rejected: [] },
+      { to: ["usr_1", "usr_2"] },
+    )
     assert.deepEqual(masked.accepted, ["usr_1", "usr_2"])
+  })
+
+  it("keeps role id when demo roles share the self mailbox", () => {
+    const dir = parseRecipientsCsv(
+      ["usr_hr,me@demo.test,HR", "usr_manager,me@demo.test,Manager"].join("\n"),
+    )
+    const obf = createObfuscator(dir)
+    obf.registerSelf("me@demo.test")
+    const { emails } = obf.resolveRecipients(["usr_hr"])
+    assert.deepEqual(emails, ["me@demo.test"])
+    const masked = obf.maskSendResult(
+      { messageId: "msg1", accepted: emails, rejected: [] },
+      { to: ["usr_hr"] },
+    )
+    assert.deepEqual(masked.accepted, ["usr_hr"])
+    const listed = obf.maskListItems([
+      {
+        uid: "msg1",
+        subject: "access",
+        from: ["me@demo.test"],
+        to: ["me@demo.test"],
+        date: "",
+        seen: true,
+      },
+    ])
+    assert.deepEqual(listed[0].to, ["usr_hr"])
+    assert.deepEqual(listed[0].from, ["self"])
   })
 })
 
 describe("maskListItems / maskMessage", () => {
-  it("masks from/to on list items", () => {
+  it("masks from/to and subject on list items", () => {
     const obf = createObfuscator(fixtureDir())
     const [item] = obf.maskListItems([
-      { uid: 1, subject: "hi", from: ["ivan@yandex.ru"], to: ["maria@yandex.ru"], date: "", seen: false },
+      {
+        uid: 1,
+        subject: "hi ivan@yandex.ru",
+        from: ["ivan@yandex.ru"],
+        to: ["maria@yandex.ru"],
+        date: "",
+        seen: false,
+      },
     ])
     assert.deepEqual(item.from, ["usr_1"])
     assert.deepEqual(item.to, ["usr_2"])
+    assert.equal(item.subject, "hi usr_1")
   })
 
-  it("masks from/to/cc on a full message", () => {
+  it("masks from/to/cc and subject/text/html on a full message", () => {
     const obf = createObfuscator(fixtureDir())
     const m = obf.maskMessage({
       uid: 1,
-      subject: "hi",
+      subject: "hi ivan@yandex.ru",
       from: ["ivan@yandex.ru"],
       to: ["maria@yandex.ru"],
       cc: ["stranger@example.com"],
       date: "",
-      text: "body",
+      text: "body for maria@yandex.ru",
+      html: "<p>maria@yandex.ru</p>",
     })
     assert.deepEqual(m.from, ["usr_1"])
     assert.deepEqual(m.to, ["usr_2"])
     assert.match(m.cc[0], /^ext_[0-9a-f]{8}$/)
-    assert.equal(m.text, "body") // body untouched
+    assert.equal(m.subject, "hi usr_1")
+    assert.equal(m.text, "body for usr_2")
+    assert.equal(m.html, "<p>usr_2</p>")
   })
 })
 

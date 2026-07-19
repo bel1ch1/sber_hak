@@ -89,7 +89,9 @@ export function buildServer(): McpServer {
 
   const obfuscationOn = isObfuscationEnabled()
   const idNote = obfuscationOn
-    ? " PRIVACY: from/to/cc are opaque recipient IDs (e.g. usr_a1b2c3, self, ext_9f3a1c22), NOT email addresses — the MCP hides real addresses. Reuse those IDs with gmail_send."
+    ? " PRIVACY: from/to/cc and known emails in subject/body are opaque recipient IDs " +
+      "(e.g. usr_a1b2c3, self, ext_9f3a1c22), NOT email addresses — the MCP hides real addresses " +
+      "on read (reverse-masks expanded text). Reuse those IDs with gmail_send."
     : ""
 
   server.tool(
@@ -247,7 +249,14 @@ export function buildServer(): McpServer {
         bcc: bcc.emails.length ? bcc.emails : undefined,
         attachments: parsed.data.attachments,
       })
-      return asText(JSON.stringify(obf.maskSendResult(result), null, 2))
+      // Echo opaque ids the agent requested — remasking emails would collapse a
+      // shared demo mailbox (usr_hr / usr_manager / …) to "self".
+      const masked = obf.maskSendResult(result, {
+        to: parsed.data.to,
+        cc: parsed.data.cc,
+        bcc: parsed.data.bcc,
+      })
+      return asText(JSON.stringify(masked, null, 2))
     } catch (e) {
       return asText(e instanceof Error ? e.message : String(e))
     }

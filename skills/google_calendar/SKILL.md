@@ -28,7 +28,9 @@ Tools доступны в **task**, не в ephemeral-чате. Yandex calendar 
 Если Ouroboros сократит длинное имя — используй имя из live discovery.
 
 ## Правила
-- `attendees` — opaque id (`usr_*`), не email.
+- `attendees` — opaque id (`usr_*`), не email. MCP подставляет email и человекочитаемый `login` как displayName в Google Calendar.
+- В `title` / `description` / `location` можно писать opaque id — перед записью MCP раскрывает их в login; при `list_events` снова маскирует в id.
 - create: `client_token` для идемпотентности.
 - update: `uid` + `href` + `etag` из list/create; `patch.attendees` = полный список.
 - Почта — отдельно (`gmail-mcp`).
+- Справочник: `accounts.csv` колонки `id,email,label,login`.

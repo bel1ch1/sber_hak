@@ -1,7 +1,7 @@
 ---
 name: onboarding_courses
 description: Подбирает курсы по роли через Stepik MCP, фиксирует mock-зачисление stepik_enroll и отправляет учебный план сотруднику по opaque ID.
-version: 0.2.0
+version: 0.3.1
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 5 «Курсы» или руководитель просит подобрать обучение для обезличенного employee_id.
 ---
@@ -99,28 +99,17 @@ when_to_use: Главный onboarding-оркестратор делегируе
 
 ## Согласование и исполнение
 
-Полная версия: список курсов, обоснования, mock-enroll + mail.
+HITL только у оркестратора. Полная версия: курсы + mock-enroll + mail.
+Один draft-вызов, один execute после OK.
 
-- Пока `approved_version != draft_version`, не вызывай enroll/send.
-- После правок увеличь версию и покажи полный вариант.
-- Порядок write: сначала enroll, затем mail.
-- Enroll `PREPARED` → при authorize:
-
-```text
-mcp_stepik__stepik_enroll(
-  employee_id=<employee_id>,
-  courses=[{title, description, url?}, ...],
-  role=<matched role>
-)
-```
-
-Успех enroll: `ok=true`, непустой `enrollment_id`, `store="local"`.
-
-- Mail `PREPARED` → при authorize: `gmail_send(to=[employee_id], subject, text)`.
-- Успех письма: непустой `message_id`, `accepted` содержит `employee_id`, `rejected` пуст.
-- При успехе enroll и ошибке mail — частичный результат, `BLOCKED`, enroll не повторяй без новой версии/решения.
-- После timeout mail — reconciliation через Sent + action marker; при неоднозначности не повторяй send.
-- В отчёте: mock-зачисление зафиксировано + письмо отправлено; **не** «зарегистрирован на stepik.org».
+- Без совпадения `approved_version` / без `execute_authorized` → `AWAITING_APPROVAL`, без write.
+- При `execute_authorized=true` и совпадении версий — в одном запуске:
+  1. `mcp_stepik__stepik_enroll(employee_id, courses=[{title, description, url?}], role)` — успех: `ok=true`, `enrollment_id`, `store="local"`.
+  2. Затем `gmail_send(to=[employee_id], subject, text)`.
+- Уже `CONFIRMED` keys — не повторяй соответствующие write.
+- Успех mail: `messageId` + непустой `accepted` + пустой `rejected` (`employee_id` или `self`/shared-mailbox alias).
+- Enroll ok + mail fail → частичный `BLOCKED`, enroll не повторяй. Sent-reconcile только timeout.
+- В отчёте: mock-зачисление + письмо; не «зарегистрирован на stepik.org».
 
 ## Выход
 
