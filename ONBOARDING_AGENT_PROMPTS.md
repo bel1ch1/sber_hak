@@ -1,6 +1,6 @@
 # Промпты автономного агента онбординга
 
-Статус: MVP-спецификация v0.4. Документ задает целевое поведение агента и отражает фактический стек skills + MCP хакатона. Пометки `TODO` обозначают еще не утвержденный бизнес-контракт.
+Статус: MVP-спецификация v0.4.1. Документ задает целевое поведение агента и отражает фактический стек skills + MCP хакатона. Пометки `TODO` обозначают еще не утвержденный бизнес-контракт.
 
 Область MVP: полный пайплайн из шести бизнес-этапов последовательно. Каждый этап — отдельный субагент (`skills/onboarding_*` / `buddy_matching`); главный агент (`skills/onboarding`) — единая точка общения с руководителем. Параллельное исполнение в MVP не включается.
 
@@ -61,6 +61,8 @@
 
 ### 1.2. Few-shot для определения стартового триггера
 
+Источник для прогона: `workspace/examples/onboarding-trigger-fewshot.md`. Ниже — канонический набор для классификатора.
+
 ```text
 Задача классификатора: определить, просит ли авторизованный руководитель начать новый процесс онбординга. Верни только структурированный результат:
 {
@@ -74,35 +76,92 @@
   "reason": "<краткое объяснение без персональных данных>"
 }
 
+# START_ONBOARDING
+
 Пример 1
 Вход: «У нас новый сотрудник usr_k1m2n3, выходит в команду платежей backend-разработчиком».
 Выход:
-{"intent":"START_ONBOARDING","employee_id":"usr_k1m2n3","role":"backend-разработчик","team":"платежи","start_date":null,"additional_context":null,"missing_fields":[],"reason":"Явный запрос о новом сотруднике и полный рабочий контекст"}
+{"intent":"START_ONBOARDING","employee_id":"usr_k1m2n3","role":"backend-разработчик","team":"платежи","start_date":null,"additional_context":null,"missing_fields":[],"reason":"Новый сотрудник с полным обязательным контекстом"}
 
 Пример 2
 Вход: «Запусти онбординг для dev_42a, роль аналитик, команда рисков. Нужен усиленный вводный блок по SQL».
 Выход:
-{"intent":"START_ONBOARDING","employee_id":"dev_42a","role":"аналитик","team":"рисков","start_date":null,"additional_context":"Нужен усиленный вводный блок по SQL","missing_fields":[],"reason":"Явное намерение запустить онбординг"}
+{"intent":"START_ONBOARDING","employee_id":"dev_42a","role":"аналитик","team":"рисков","start_date":null,"additional_context":"Нужен усиленный вводный блок по SQL","missing_fields":[],"reason":"Явная команда запустить онбординг"}
 
 Пример 3
-Вход: «Какие доступы обычно нужны backend-разработчику в команде платежей?»
+Вход: «Пожалуйста, проведи онбординг emp_9f3c. Роль: QA-инженер. Команда: платформа. Дата выхода: 2026-08-03».
 Выход:
-{"intent":"NOT_ONBOARDING","employee_id":null,"role":"backend-разработчик","team":"платежей","start_date":null,"additional_context":null,"missing_fields":[],"reason":"Запрошена справка, новый сотрудник и запуск процесса не указаны"}
+{"intent":"START_ONBOARDING","employee_id":"emp_9f3c","role":"QA-инженер","team":"платформа","start_date":"2026-08-03","additional_context":null,"missing_fields":[],"reason":"Явный запуск с датой выхода"}
 
 Пример 4
-Вход: «Как идет онбординг usr_k1m2n3?»
+Вход: «К нам в команду роста выходит новый product manager usr_pm77 — оформи полный онбординг».
 Выход:
-{"intent":"NOT_ONBOARDING","employee_id":"usr_k1m2n3","role":null,"team":null,"start_date":null,"additional_context":null,"missing_fields":[],"reason":"Это запрос статуса существующего процесса, а не запуск нового"}
+{"intent":"START_ONBOARDING","employee_id":"usr_pm77","role":"product manager","team":"роста","start_date":null,"additional_context":null,"missing_fields":[],"reason":"Запрос полного онбординга с ID, ролью и командой"}
 
 Пример 5
+Вход: «Нужно онбордить коллегу usr_ops12: роль специалист поддержки, команда клиентского сервиса, без персональных данных в письмах».
+Выход:
+{"intent":"START_ONBOARDING","employee_id":"usr_ops12","role":"специалист поддержки","team":"клиентского сервиса","start_date":null,"additional_context":"без персональных данных в письмах","missing_fields":[],"reason":"Смысловой запрос на онбординг нового коллеги"}
+
+# NOT_ONBOARDING
+
+Пример 6
+Вход: «Какие доступы обычно нужны backend-разработчику в команде платежей?»
+Выход:
+{"intent":"NOT_ONBOARDING","employee_id":null,"role":"backend-разработчик","team":"платежей","start_date":null,"additional_context":null,"missing_fields":[],"reason":"Справочный вопрос без запуска процесса"}
+
+Пример 7
+Вход: «Как идет онбординг usr_k1m2n3?»
+Выход:
+{"intent":"NOT_ONBOARDING","employee_id":"usr_k1m2n3","role":null,"team":null,"start_date":null,"additional_context":null,"missing_fields":[],"reason":"Запрос статуса существующего процесса"}
+
+Пример 8
+Вход: «Напомни этапы онбординга в MVP».
+Выход:
+{"intent":"NOT_ONBOARDING","employee_id":null,"role":null,"team":null,"start_date":null,"additional_context":null,"missing_fields":[],"reason":"Мета-вопрос о процессе, не запуск для сотрудника"}
+
+Пример 9
+Вход: «Подбери курсы Stepik для роли аналитик, нового сотрудника нет».
+Выход:
+{"intent":"NOT_ONBOARDING","employee_id":null,"role":"аналитик","team":null,"start_date":null,"additional_context":"нового сотрудника нет","missing_fields":[],"reason":"Локальный запрос без старта пайплайна"}
+
+Пример 10
+Вход: «В текущем онбординге usr_k1m2n3 смени бадди на usr_b9».
+Выход:
+{"intent":"NOT_ONBOARDING","employee_id":"usr_k1m2n3","role":null,"team":null,"start_date":null,"additional_context":"смени бадди на usr_b9","missing_fields":[],"reason":"Правка существующего процесса, не новый запуск"}
+
+# AMBIGUOUS
+
+Пример 11
 Вход: «К нам выходит новый аналитик».
 Выход:
-{"intent":"AMBIGUOUS","employee_id":null,"role":"аналитик","team":null,"start_date":null,"additional_context":null,"missing_fields":["employee_id","team"],"reason":"Возможен запуск онбординга, но обязательных полей недостаточно"}
+{"intent":"AMBIGUOUS","employee_id":null,"role":"аналитик","team":null,"start_date":null,"additional_context":null,"missing_fields":["employee_id","team"],"reason":"Похоже на старт, но нет employee_id и team"}
+
+Пример 12
+Вход: «Запусти онбординг для usr_x9».
+Выход:
+{"intent":"AMBIGUOUS","employee_id":"usr_x9","role":null,"team":null,"start_date":null,"additional_context":null,"missing_fields":["role","team"],"reason":"Есть ID, нет роли и команды"}
+
+Пример 13
+Вход: «Новый сотрудник usr_ab12 выходит backend-разработчиком, команда пока не определена».
+Выход:
+{"intent":"AMBIGUOUS","employee_id":"usr_ab12","role":"backend-разработчик","team":null,"start_date":null,"additional_context":"команда пока не определена","missing_fields":["team"],"reason":"Обязательное поле team отсутствует"}
+
+Пример 14
+Вход: «Оформи онбординг: роль дата-инженер, команда DWH».
+Выход:
+{"intent":"AMBIGUOUS","employee_id":null,"role":"дата-инженер","team":"DWH","start_date":null,"additional_context":null,"missing_fields":["employee_id"],"reason":"Нет обезличенного employee_id"}
+
+Пример 15
+Вход: «Кажется, скоро нужен онбординг, но деталей еще нет».
+Выход:
+{"intent":"AMBIGUOUS","employee_id":null,"role":null,"team":null,"start_date":null,"additional_context":null,"missing_fields":["employee_id","role","team"],"reason":"Намерение возможно, обязательных данных нет"}
 
 Правила:
 - При `START_ONBOARDING` не начинай этапы немедленно: покажи извлеченные поля и спроси: «Запустить онбординг с этими данными?»
 - При `AMBIGUOUS` задай один вопрос, собирающий недостающие обязательные поля, без запроса персональных данных.
 - При `NOT_ONBOARDING` отвечай на исходный запрос и не создавай процесс.
+- Игнорируй ФИО/email/телефон, даже если пользователь их прислал; не клади их в поля результата.
 - Сохрани классификацию, перечень найденных полей и последующее решение руководителя как обезличенную метрику. Не сохраняй полный исходный текст, если он не нужен для аудита.
 ```
 
@@ -260,8 +319,8 @@
 2. Сформируй план слотов (напр. team-kickoff, hr-intro, 1on1-manager, 1on1-buddy): название, время, opaque attendees, обоснование. Не разворачивай автоматически все recurring-инстансы дейли на месяцы вперёд без явного правила.
 3. Не раскрывай состав участников и содержимое чужих календарей сверх необходимого для согласования.
 4. Покажи список руководителю и ожидай согласования или правок; после правок снова покажи полный план.
-5. После подтверждения создай утвержденные события через `yandex_calendar_create_event` с opaque `attendees` и `client_token`.
-6. Если нужно добавить сотрудника в уже существующее событие — используй `yandex_calendar_update_event` с полной заменой `attendees` (поддерживается). Не отменяй чужую командную встречу без явного решения руководителя.
+5. После подтверждения создай утвержденные события через `google_calendar_create_event` с opaque `attendees` и `client_token`.
+6. Если нужно добавить сотрудника в уже существующее событие — используй `google_calendar_update_event` с полной заменой `attendees` (поддерживается). Не отменяй чужую командную встречу без явного решения руководителя.
 7. Проверь результат (uid/href/etag), отсутствие дублей и сохрани ID событий.
 ```
 
@@ -291,7 +350,7 @@
 3. Параллельно `jira_create_onboarding_plan(..., dry_run=true)` — preview Epic/задач из тех же целей.
 4. Не придумывай KPI и формулировки сверх шаблона/preview. При `weight_ok=false` предупреди руководителя.
 5. Покажи единый список внешних действий: создание Jira-плана и письмо с вложением `.xlsx`.
-6. После подтверждения: `jira_create_onboarding_plan(..., dry_run=false)` с `hire_id=employee_id`, `assignee_id=employee_id`; затем `yandex_mail_send` к `manager_id` с `attachments: [{filename, content_base64, content_type}]`.
+6. После подтверждения: `jira_create_onboarding_plan(..., dry_run=false)` с `hire_id=employee_id`, `assignee_id=employee_id`; затем `gmail_send` к `manager_id` с `attachments: [{filename, content_base64, content_type}]`.
 7. Не утверждай назначение в Jira, если ответ MCP этого не подтверждает. Идемпотентность — label `onboarding:<employee_id>`.
 8. Для повторного теста записи используй `jira_rollback_plan(project_key, hire_id)` — удаляет все issues плана; затем можно создать заново.
 9. Сохрани локальные артефакты (`Цели_ИС.xlsx`, `probation-plan.md`) в разрешенном task drive.
@@ -305,8 +364,8 @@
 - `{buddy_rank}` — топ-3 кандидата через `mcp_buddy__buddy_match`.
 - `{welcome_draft}` — фиксированный шаблон формирует `onboarding_welcome`, сведения читает из Confluence или Wiki.
 - `{company_knowledge}` — чтение корпоративной информации. Текущие варианты: `mcp_wiki__wiki_*` или `mcp_confluence__confluence_*`; источник выбирается конфигурацией.
-- `{mail_send_by_id}` — отправка по обезличенному ID, опционально с вложениями. Текущий прототип: `mcp_yandex_mail__yandex_mail_send` (`attachments: [{filename, content_base64}]`).
-- `{calendar_availability}` и `{calendar_schedule_by_id}` — слоты и создание через `mcp_yandex_calendar__yandex_calendar_*`; обновление attendees существующего события — `yandex_calendar_update_event` (полная замена списка).
+- `{mail_send_by_id}` — отправка по обезличенному ID, опционально с вложениями. Текущий стек: `mcp_gmail__gmail_send` (`attachments: [{filename, content_base64}]`). Yandex mail MCP отключён.
+- `{calendar_availability}` и `{calendar_schedule_by_id}` — слоты и создание через `mcp_google_calendar__google_calendar_*`; обновление attendees — `google_calendar_update_event` (полная замена списка). Yandex calendar MCP отключён.
 - `{course_recommend}` — рекомендации по роли: `mcp_stepik__stepik_get_courses_by_role` / `stepik_suggest_onboarding`.
 - `{course_enroll_by_id}` — mock-зачисление: `mcp_stepik__stepik_enroll` (локальный JSON, не Stepik.org).
 - `{probation_goals_xlsx}` — Excel «Цели на ИС»: `mcp_jira__jira_build_probation_goals_xlsx`.

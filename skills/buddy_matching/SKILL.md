@@ -1,7 +1,7 @@
 ---
 name: buddy_matching
 description: Подбирает топ-3 кандидатов в бадди по рабочим критериям, принимает версионный выбор руководителя и после подтверждения отправляет письмо выбранному buddy_id.
-version: 0.2.2
+version: 0.2.3
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 2 «Бадди» или руководитель просит подобрать наставника для обезличенного employee_id.
 ---
@@ -55,12 +55,12 @@ when_to_use: Главный onboarding-оркестратор делегируе
    - `mcp_buddy__buddy_verify`;
    - `mcp_buddy__buddy_match`;
    - `mcp_buddy__buddy_get_profile`;
-   - `mcp_yandex_mail__yandex_mail_verify`;
-   - `mcp_yandex_mail__yandex_mail_list_folders`;
-   - `mcp_yandex_mail__yandex_mail_list_messages`;
-   - `mcp_yandex_mail__yandex_mail_get_message`;
-   - `mcp_yandex_mail__yandex_mail_send`.
-2. Вызови read-only `mcp_buddy__buddy_verify()` и `mcp_yandex_mail__yandex_mail_verify()`.
+   - `mcp_gmail__gmail_verify`;
+   - `mcp_gmail__gmail_list_folders`;
+   - `mcp_gmail__gmail_list_messages`;
+   - `mcp_gmail__gmail_get_message`;
+   - `mcp_gmail__gmail_send`.
+2. Вызови read-only `mcp_buddy__buddy_verify()` и `mcp_gmail__gmail_verify()`.
 3. Если capability отсутствует, schema несовместима или verify вернул ошибку, не выполняй подбор и верни `BLOCKED` с точной причиной.
 
 ## Подбор
@@ -97,17 +97,17 @@ when_to_use: Главный onboarding-оркестратор делегируе
 - выбранный `buddy_id`;
 - обоснование;
 - полный текст письма;
-- действие `mcp_yandex_mail__yandex_mail_send(to=[buddy_id], subject=<тема утвержденной версии>, text=<plain-text тело утвержденной версии>)`.
+- действие `mcp_gmail__gmail_send(to=[buddy_id], subject=<тема утвержденной версии>, text=<plain-text тело утвержденной версии>)`.
 
 Если `approved_version` не совпадает с `draft_version`, не отправляй письмо. После правки увеличь версию и покажи весь вариант снова.
 
 При совпадении версий:
 
 1. Сформируй action marker и operation key по разделу «Идемпотентность» этого файла.
-2. Сначала верни `PREPARED`, полный payload, key/hash и не вызывай send. Только в следующем запуске с подтвержденной записью `PENDING`, совпадающими key/hash/version и `execute_authorized=true` вызови `mcp_yandex_mail__yandex_mail_send(to=[buddy_id], subject=<тема утвержденной версии>, text=<plain-text тело утвержденной версии>)`.
+2. Сначала верни `PREPARED`, полный payload, key/hash и не вызывай send. Только в следующем запуске с подтвержденной записью `PENDING`, совпадающими key/hash/version и `execute_authorized=true` вызови `mcp_gmail__gmail_send(to=[buddy_id], subject=<тема утвержденной версии>, text=<plain-text тело утвержденной версии>)`. В теле/теме допустимы opaque ID — MCP раскрывает их перед send.
 3. Успех подтвержден только если ответ содержит непустой `message_id`, `accepted` содержит выбранный `buddy_id`, а `rejected` пуст. Только тогда сохрани выбранный `buddy_id` и безопасный `message_id` для этапа встреч.
 4. При ошибке или malformed/partial-ответе верни `BLOCKED`, сохрани выбранного бадди и не заявляй об отправке.
-5. После timeout или неизвестного результата вызови `mcp_yandex_mail__yandex_mail_list_folders()`, определи Sent path, затем `mcp_yandex_mail__yandex_mail_list_messages(folder=<sent path>, since=<attempt_started_at>, limit=100)`. Сопоставь action marker, `buddy_id` и время; при необходимости сравни тело через `mcp_yandex_mail__yandex_mail_get_message(folder=<sent path>, uid=<найденный uid>)`. При неоднозначности не повторяй send и запроси ручную проверку.
+5. После timeout или неизвестного результата вызови `mcp_gmail__gmail_list_folders()`, определи Sent path, затем `mcp_gmail__gmail_list_messages(folder=<sent path>, since=<attempt_started_at>, limit=100)`. Сопоставь action marker, `buddy_id` и время; при необходимости сравни тело через `mcp_gmail__gmail_get_message(folder=<sent path>, uid=<найденный uid>)`. При неоднозначности не повторяй send и запроси ручную проверку.
 6. Повтор не должен заново выполнять подбор. Считай этап завершенным только после подтвержденной отправки; не жди ответа бадди в MVP.
 
 ## Выход

@@ -1,0 +1,209 @@
+# MCP-серверы хакатона.
+# Запуск только MCP:
+#   docker compose -f docker-compose.mcp.yml up -d --build
+# Вместе с Ouroboros: include из локального docker-compose.yml
+
+services:
+  # Legacy Yandex calendar — disabled (profile "yandex"). Use google-calendar-mcp.
+  yandex-calendar-mcp:
+    profiles: ["yandex"]
+    build:
+      context: ./mcp/yandex-calendar-mcp
+      dockerfile: Dockerfile
+    image: yandex-calendar-mcp:latest
+    container_name: yandex-calendar-mcp
+    restart: unless-stopped
+    env_file:
+      - path: ./mcp/yandex-calendar-mcp/.env
+        required: false
+    environment:
+      MCP_TRANSPORT: http
+      MCP_HTTP_PORT: "3000"
+      CALENDAR_OBFUSCATION: "true"
+    ports:
+      - "3004:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  google-calendar-mcp:
+    build:
+      context: ./mcp/google-calendar-mcp
+      dockerfile: Dockerfile
+    image: google-calendar-mcp:latest
+    container_name: google-calendar-mcp
+    restart: unless-stopped
+    env_file:
+      - path: ./mcp/google-calendar-mcp/.env
+        required: false
+      - path: ./mcp/gmail-mcp/.env
+        required: false
+    environment:
+      MCP_TRANSPORT: http
+      MCP_HTTP_PORT: "3000"
+      CALENDAR_OBFUSCATION: "true"
+    ports:
+      - "3010:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Legacy Yandex mail — disabled (profile "yandex"). Use gmail-mcp.
+  yandex-mail-mcp:
+    profiles: ["yandex"]
+    build:
+      context: ./mcp/yandex-mail-mcp
+      dockerfile: Dockerfile
+    image: yandex-mail-mcp:latest
+    container_name: yandex-mail-mcp
+    restart: unless-stopped
+    env_file:
+      - path: ./mcp/yandex-mail-mcp/.env
+        required: false
+    environment:
+      MCP_TRANSPORT: http
+      MCP_HTTP_PORT: "3000"
+      MAIL_OBFUSCATION: "true"
+    ports:
+      - "3006:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  gmail-mcp:
+    build:
+      context: ./mcp/gmail-mcp
+      dockerfile: Dockerfile
+    image: gmail-mcp:latest
+    container_name: gmail-mcp
+    restart: unless-stopped
+    env_file:
+      - path: ./mcp/gmail-mcp/.env
+        required: false
+    environment:
+      MCP_TRANSPORT: http
+      MCP_HTTP_PORT: "3000"
+      MAIL_OBFUSCATION: "true"
+    ports:
+      - "3009:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  buddy-mcp:
+    build:
+      context: ./mcp/buddy-mcp
+      dockerfile: Dockerfile
+    image: buddy-mcp:latest
+    container_name: buddy-mcp
+    restart: unless-stopped
+    environment:
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "3008"
+      BUDDY_PRIMARY_ID: usr_buddy
+    ports:
+      - "3008:3008"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',3008),2); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  stepik-mcp:
+    build:
+      context: .
+      dockerfile: mcp/stepik-mcp/Dockerfile
+    image: stepik-mcp:latest
+    container_name: stepik-mcp
+    restart: unless-stopped
+    env_file:
+      - path: ./mcp/stepik-mcp/.env
+        required: false
+    environment:
+      MCP_TRANSPORT: http
+      MCP_HTTP_PORT: "3000"
+      STEPIK_CATALOG_PATH: /data/stepik_courses_by_role.xlsx
+    ports:
+      - "3007:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  jira-mcp:
+    build:
+      context: ./mcp/jira-mcp
+      dockerfile: Dockerfile
+    image: jira-mcp:latest
+    container_name: jira-mcp
+    restart: unless-stopped
+    env_file:
+      - path: ./mcp/jira-mcp/.env
+        required: false
+    environment:
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "9101"
+    ports:
+      - "9101:9101"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',9101),2); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  wiki-mock-mcp:
+    build:
+      context: ./mcp/wiki-mock-mcp
+      dockerfile: Dockerfile
+    image: wiki-mock-mcp:latest
+    container_name: wiki-mock-mcp
+    restart: unless-stopped
+    environment:
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "9102"
+    ports:
+      - "9102:9102"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',9102),2); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  confluence-mcp:
+    build:
+      context: ./mcp/confluence-mcp
+      dockerfile: Dockerfile
+    image: confluence-mcp:latest
+    container_name: confluence-mcp
+    restart: unless-stopped
+    env_file:
+      - path: ./mcp/confluence-mcp/.env
+        required: false
+    environment:
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "9103"
+    ports:
+      - "9103:9103"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',9103),2); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

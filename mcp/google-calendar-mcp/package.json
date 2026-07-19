@@ -1,0 +1,22 @@
+{
+  "name": "google-calendar-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "tsx server.ts",
+    "server:http": "tsx server.ts --http",
+    "auth": "tsx get-refresh-token.ts",
+    "test": "node --import tsx --test --test-reporter=spec calendar-schemas.test.ts",
+    "build:check": "npx esbuild server.ts --bundle --platform=node --target=node24 --format=esm --outfile=.build-check/server.mjs --packages=external && echo build:check ok"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "googleapis": "^148.0.0",
+    "tsx": "^4.20.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

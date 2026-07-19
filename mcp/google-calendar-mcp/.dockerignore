@@ -1,0 +1,15 @@
+node_modules
+.env
+.env.*
+!.env.example
+.git
+dist
+.build-check
+.cursor
+.opencode
+docs
+*.md
+!README.md
+*.test.ts
+smoke-*.ts
+bun.lock

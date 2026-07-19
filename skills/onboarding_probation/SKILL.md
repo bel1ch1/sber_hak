@@ -1,7 +1,7 @@
 ---
 name: onboarding_probation
 description: Собирает цели на испытательный срок по корпоративной Excel-форме, показывает таблицу руководителю, создаёт задачи в Jira и отправляет утверждённый план письмом с вложением .xlsx.
-version: 0.2.0
+version: 0.2.1
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 6 «План испытательного срока» для нового сотрудника.
 ---
@@ -79,14 +79,14 @@ when_to_use: Главный onboarding-оркестратор делегируе
    - `mcp_jira__jira_search`;
    - `mcp_jira__jira_build_probation_goals_xlsx`;
    - `mcp_jira__jira_create_onboarding_plan`;
-   - `mcp_yandex_mail__yandex_mail_verify`;
-   - `mcp_yandex_mail__yandex_mail_list_folders`;
-   - `mcp_yandex_mail__yandex_mail_list_messages`;
-   - `mcp_yandex_mail__yandex_mail_get_message`;
-   - `mcp_yandex_mail__yandex_mail_send` (с поддержкой `attachments`).
+   - `mcp_gmail__gmail_verify`;
+   - `mcp_gmail__gmail_list_folders`;
+   - `mcp_gmail__gmail_list_messages`;
+   - `mcp_gmail__gmail_get_message`;
+   - `mcp_gmail__gmail_send` (с поддержкой `attachments`).
 2. Проверь schemas: для Excel — `hire_id`, `role`, `start_date`, `team`, `manager_id`, `include_base64`; для Jira-плана — `project_key`, `hire_id`, `role`, `start_date`, `team`, `assignee_id`, `dry_run`; для send — `to`, `subject`, `text`, `attachments[{filename,content_base64,content_type?}]`.
 3. Вызови read-only `mcp_jira__jira_get_project(project_key)`.
-4. Вызови read-only `mcp_yandex_mail__yandex_mail_verify()`.
+4. Вызови read-only `mcp_gmail__gmail_verify()`.
 5. Если tool отсутствует, schema несовместима (нет `attachments` у send) или проверка вернула ошибку — `BLOCKED` с точной причиной. Не отправляй план без возможности вложить Excel.
 
 ## Preview
@@ -173,7 +173,7 @@ Epic + задачи из утвержденного preview
 - Mail `PREPARED`, затем при authorize:
 
 ```text
-mcp_yandex_mail__yandex_mail_send(
+mcp_gmail__gmail_send(
   to=[manager_id],
   subject=<тема с action marker>,
   text=<plain-text план>,
@@ -187,6 +187,16 @@ mcp_yandex_mail__yandex_mail_send(
 
 - Успех письма: непустой `message_id`, `accepted` содержит `manager_id`, `rejected` пуст; желательно `attachment_names` содержит имя xlsx. При timeout — reconciliation через Sent + action marker; при неоднозначности не повторяй send.
 - При успехе Jira и ошибке почты — частичный результат, `BLOCKED`, Jira не повторяй.
+
+## Повторный тест / очистка Jira
+
+Для повторной записи плана после демо вызови (вне обычного happy path, по запросу оркестратора/руководителя):
+
+```text
+mcp_jira__jira_rollback_plan(project_key=<project_key>, hire_id=<employee_id>)
+```
+
+Удаляет все issues с label `onboarding:<employee_id>`. Письма и календарь rollback не откатывает.
 
 ## Выход
 

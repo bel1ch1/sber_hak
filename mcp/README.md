@@ -16,8 +16,8 @@ docker compose up -d --build
 
 | Сервис | Хост-порт | URL с хоста | URL из compose-сети |
 |--------|-----------|-------------|---------------------|
-| yandex-calendar-mcp | **3004** | `http://localhost:3004/mcp` | `http://yandex-calendar-mcp:3000/mcp` |
-| yandex-mail-mcp | **3006** | `http://localhost:3006/mcp` | `http://yandex-mail-mcp:3000/mcp` |
+| gmail-mcp | **3009** | `http://localhost:3009/mcp` | `http://gmail-mcp:3000/mcp` |
+| google-calendar-mcp | **3010** | `http://localhost:3010/mcp` | `http://google-calendar-mcp:3000/mcp` |
 | buddy-mcp | **3008** | `http://localhost:3008/mcp` | `http://buddy-mcp:3008/mcp` |
 | stepik-mcp | **3007** | `http://localhost:3007/mcp` | `http://stepik-mcp:3000/mcp` |
 | jira-mcp | **9101** | `http://localhost:9101/mcp` | `http://jira-mcp:9101/mcp` |
@@ -36,8 +36,8 @@ docker compose up -d --build
 |-----|------|-------------|
 | jira-mcp | `jira_verify` | REST get project (`JIRA_PROJECT_KEY`) |
 | confluence-mcp | `confluence_verify` | list spaces (+ pages в space) |
-| yandex-calendar-mcp | `yandex_calendar_verify` | CalDAV discovery |
-| yandex-mail-mcp | `yandex_mail_verify` | IMAP LIST folders |
+| gmail-mcp | `gmail_verify` | Gmail API profile + labels |
+| google-calendar-mcp | `google_calendar_verify` | calendars.get |
 | buddy-mcp | `buddy_verify` | каталог accounts.csv / PRIMARY id |
 
 ### Анонимизация (id → логин внутри MCP)
@@ -45,12 +45,13 @@ docker compose up -d --build
 | MCP | Есть? | Файл | Как агент передаёт |
 |-----|-------|------|-------------------|
 | yandex-mail | **да** (`MAIL_OBFUSCATION`) | `recipients.csv` | `to: ["usr_manager"]` |
+| gmail | **да** (`MAIL_OBFUSCATION`) | `recipients.csv` | `to: ["usr_manager"]` |
 | yandex-calendar | **да** (`CALENDAR_OBFUSCATION`) | `accounts.csv` | `attendees: ["usr_employee","usr_buddy"]` |
 | jira | **да** | `accounts.csv` | `assignee_id` / `hire_id` → Jira accountId |
 | buddy | **да** | `accounts.csv` | ответы только с `buddy_id` |
 | confluence | **нет user-id в tools** | — | чтение/поиск страниц, без назначения людей |
 
-Demo-логины: почта/календарь/бадди → `zvetshl@yandex.ru`; Jira assignee → `andreyzv5555@gmail.com`. PRIMARY buddy всегда `usr_buddy`.
+Demo-логины: почта/календарь (`usr_manager`, `usr_employee`, `usr_hr`, `usr_buddy`, `usr_k1m2n3`, …) → один ящик `zvetshl@yandex.ru`; Jira assignee → `andreyzv5555@gmail.com`. Агент видит только opaque id. PRIMARY buddy всегда `usr_buddy`.
 
 **Без `*_verify` (нет внешнего API):** `wiki-mock-mcp`, `stepik-mcp`.
 
@@ -96,6 +97,43 @@ uv run --with mcp ..\verify_mcp_live.py
 ```
 
 Playbook: `skills/yandex_mail/SKILL.md`.
+
+## gmail-mcp (preferred mail for demo)
+
+| Параметр | Значение |
+|----------|----------|
+| Папка | `mcp/gmail-mcp/` |
+| Режим | Gmail API HTTPS (5 tools) |
+| HTTP | `POST /mcp`, `GET /healthz` |
+| Порт (хост) | `3009` → `3000` |
+| ID в Ouroboros | `gmail` |
+| OAuth | Desktop client + refresh token (`SETUP_GMAIL.md`) |
+
+### Auth
+
+`GMAIL_CLIENT_ID` + `GMAIL_CLIENT_SECRET` + `GMAIL_REFRESH_TOKEN` в `mcp/gmail-mcp/.env`. Куда кликать: `mcp/gmail-mcp/SETUP_GMAIL.md`.
+
+### Tools
+
+- `mcp_gmail__gmail_verify`
+- `mcp_gmail__gmail_list_folders`
+- `mcp_gmail__gmail_list_messages`
+- `mcp_gmail__gmail_get_message`
+- `mcp_gmail__gmail_send`
+
+### Регистрация в Ouroboros
+
+```json
+{
+  "id": "gmail",
+  "name": "gmail",
+  "url": "http://gmail-mcp:3000/mcp",
+  "transport": "streamable_http",
+  "enabled": true
+}
+```
+
+Playbook: `skills/gmail/SKILL.md`.
 
 ## yandex-calendar-mcp
 

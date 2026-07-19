@@ -1,7 +1,7 @@
 ---
 name: onboarding_access
 description: Готовит для нового сотрудника обоснованный список доступов, проводит версионное согласование с руководителем и после подтверждения отправляет заявку по обезличенному ID.
-version: 0.1.4
+version: 0.1.6
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 1 «Доступы» или руководитель явно просит подготовить заявку на доступы для обезличенного employee_id.
 ---
@@ -60,9 +60,10 @@ when_to_use: Главный onboarding-оркестратор делегируе
 1. Проверь наличие и schemas:
    - Confluence: `mcp_confluence__confluence_verify`, `mcp_confluence__confluence_search`, `mcp_confluence__confluence_get_page`;
    - Wiki fallback: `mcp_wiki__wiki_list_pages`, `mcp_wiki__wiki_search`, `mcp_wiki__wiki_get_page`;
-   - mail: `mcp_yandex_mail__yandex_mail_verify`, `mcp_yandex_mail__yandex_mail_list_folders`, `mcp_yandex_mail__yandex_mail_list_messages`, `mcp_yandex_mail__yandex_mail_get_message`, `mcp_yandex_mail__yandex_mail_send`.
-2. Вызови `mcp_yandex_mail__yandex_mail_verify()` и read-only verify выбранного источника: `mcp_confluence__confluence_verify()` либо `mcp_wiki__wiki_list_pages()`.
+   - mail: `mcp_gmail__gmail_verify`, `mcp_gmail__gmail_list_folders`, `mcp_gmail__gmail_list_messages`, `mcp_gmail__gmail_get_message`, `mcp_gmail__gmail_send`.
+2. Вызови `mcp_gmail__gmail_verify()` и read-only verify выбранного источника: `mcp_confluence__confluence_verify()` либо `mcp_wiki__wiki_list_pages()`.
 3. Если mail недоступен, schema несовместима или оба источника не дали валидного ответа, верни `BLOCKED` и не формируй неподтвержденную заявку.
+4. Вложения для этого этапа не требуются; `attachments` у send не используй.
 
 ## Источник
 
@@ -118,19 +119,19 @@ P.S. После согласования руководителем направ
 сохрани корпоративную формулировку и добавь маркеры идемпотентности/поиска дублей.
 
 Покажи полный список путей и готовое тело письма. Планируемое внешнее действие одно:
-`mcp_yandex_mail__yandex_mail_send(to=[manager_id], subject=<тема>, text=<тело выше>)`.
-HTML-форму и вложения не отправляй (mail MCP — plain text).
+`mcp_gmail__gmail_send(to=[manager_id], subject=<тема>, text=<тело выше>)`.
+HTML-форму не отправляй: тело — plain text. Вложения на этом этапе не используй (заявка текстом); Excel-вложения относятся к этапу ИС.
 
 ## Согласование и исполнение
 
 - Если `approved_version` не совпадает с `draft_version`, не отправляй письмо; верни `AWAITING_APPROVAL`.
 - Примени `manager_feedback`, пересобери весь вариант и сохрани новую версию.
 - Сформируй action marker и operation key по разделу «Идемпотентность» этого файла; добавь action marker в тему утвержденного письма.
-- При совпадении версий сначала верни `PREPARED`, полный payload, key/hash и не вызывай send. Только в следующем запуске с подтвержденной записью `PENDING`, совпадающими key/hash/version и `execute_authorized=true` вызови `mcp_yandex_mail__yandex_mail_send(to=[manager_id], subject=<тема утвержденной версии>, text=<plain-text тело утвержденной версии>)`.
-- Mail MCP отправляет plain text без вложений. Не утверждай, что файл приложен.
+- При совпадении версий сначала верни `PREPARED`, полный payload, key/hash и не вызывай send. Только в следующем запуске с подтвержденной записью `PENDING`, совпадающими key/hash/version и `execute_authorized=true` вызови `mcp_gmail__gmail_send(to=[manager_id], subject=<тема утвержденной версии>, text=<plain-text тело утвержденной версии>)`.
+- На этапе доступов вызывай send без `attachments`. Не утверждай, что файл приложен.
 - Тема должна содержать `onboarding:<employee_id>` (и action marker) для поиска дублей; базовый текст темы — `Запрос на выдачу прав.` как в корпоративной форме.
 - Успех подтвержден только если ответ содержит непустой `message_id`, `accepted` содержит `manager_id`, а `rejected` пуст. Иначе сохрани частичный/неопределенный результат и верни `BLOCKED`.
-- После timeout или неоднозначного ответа вызови `mcp_yandex_mail__yandex_mail_list_folders()`, однозначно определи Sent path, затем `mcp_yandex_mail__yandex_mail_list_messages(folder=<sent path>, since=<attempt_started_at>, limit=100)`. Сопоставь action marker, `manager_id` и время; при необходимости сравни точное тело через `mcp_yandex_mail__yandex_mail_get_message(folder=<sent path>, uid=<найденный uid>)`. Если Sent path или результат неоднозначен, не повторяй send и запроси ручную проверку.
+- После timeout или неоднозначного ответа вызови `mcp_gmail__gmail_list_folders()`, однозначно определи Sent path, затем `mcp_gmail__gmail_list_messages(folder=<sent path>, since=<attempt_started_at>, limit=100)`. Сопоставь action marker, `manager_id` и время; при необходимости сравни точное тело через `mcp_gmail__gmail_get_message(folder=<sent path>, uid=<найденный uid>)`. Если Sent path или результат неоднозначен, не повторяй send и запроси ручную проверку.
 - Сохрани только безопасный `message_id`, operation key и статус.
 - Не вставляй в письмо ФИО или личные email; организация в демо — `ТОТ`, если иное не задано во входе.
 ## Выход

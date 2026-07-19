@@ -1,0 +1,10 @@
+# accounts.csv Ч id > email дл€ Google Calendar attendees
+# Columns: id,email,label
+id,email,label
+usr_manager,andreyzv5555@gmail.com,Manager (demo)
+usr_employee,andreyzv5555@gmail.com,New hire (demo)
+usr_hr,andreyzv5555@gmail.com,HR (demo)
+usr_buddy,andreyzv5555@gmail.com,Buddy PRIMARY
+usr_buddy_b,buddy.b@example.invalid,Buddy decoy B
+usr_buddy_c,buddy.c@example.invalid,Buddy decoy C
+usr_k1m2n3,andreyzv5555@gmail.com,Hire id alias

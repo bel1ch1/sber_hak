@@ -101,7 +101,8 @@ volumes:
 
 | MCP | Типичные переменные |
 |-----|---------------------|
-| `mcp/yandex-mail-mcp/.env` | `YANDEX_MAIL_LOGIN`, app password или OAuth, `MAIL_SEND_ENABLED=true` |
+| `mcp/gmail-mcp/.env` | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` (см. `mcp/gmail-mcp/SETUP_GMAIL.md`) |
+| `mcp/google-calendar-mcp/.env` | те же OAuth-креды (или подхват из gmail-mcp) |
 | `mcp/yandex-calendar-mcp/.env` | CalDAV login / token |
 | `mcp/jira-mcp/.env` | `JIRA_MODE=mock` или real + `JIRA_BASE_URL` / email / token |
 | `mcp/confluence-mcp/.env` | Cloud URL + token (для демо можно оставить mock/seed) |
@@ -128,8 +129,8 @@ Settings → Advanced → MCP. URL **из контейнера Ouroboros** (об
 
 ```json
 [
-  {"id":"yandex_mail","name":"yandex-mail","url":"http://yandex-mail-mcp:3000/mcp","transport":"streamable_http","enabled":true},
-  {"id":"yandex_calendar","name":"yandex-calendar","url":"http://yandex-calendar-mcp:3000/mcp","transport":"streamable_http","enabled":true},
+  {"id":"gmail","name":"gmail","url":"http://gmail-mcp:3000/mcp","transport":"streamable_http","enabled":true},
+  {"id":"google_calendar","name":"google-calendar","url":"http://google-calendar-mcp:3000/mcp","transport":"streamable_http","enabled":true},
   {"id":"buddy","name":"buddy","url":"http://buddy-mcp:3008/mcp","transport":"streamable_http","enabled":true},
   {"id":"stepik","name":"stepik","url":"http://stepik-mcp:3000/mcp","transport":"streamable_http","enabled":true},
   {"id":"jira","name":"jira","url":"http://jira-mcp:9101/mcp","transport":"streamable_http","enabled":true},
@@ -138,6 +139,7 @@ Settings → Advanced → MCP. URL **из контейнера Ouroboros** (об
 ]
 ```
 
+Yandex mail/calendar MCP отключены (compose profile `yandex`).
 С хоста (без общей сети) используйте `http://localhost:<порт>/mcp` — порты в таблице ниже. После изменения MCP выполните `/restart` в чате агента.
 
 ### 7. Skills
@@ -153,8 +155,8 @@ Settings → Advanced → MCP. URL **из контейнера Ouroboros** (об
 
 | Сервис | Порт |
 |--------|------|
-| yandex-calendar-mcp | 3004 |
-| yandex-mail-mcp | 3006 |
+| google-calendar-mcp | 3010 |
+| gmail-mcp | 3009 |
 | stepik-mcp | 3007 |
 | buddy-mcp | 3008 |
 | jira-mcp | 9101 |
@@ -168,7 +170,7 @@ Settings → Advanced → MCP. URL **из контейнера Ouroboros** (об
 1. **Доступы** — политика из Wiki/Confluence → письмо руководителю  
 2. **Бадди** — `buddy_match` → выбор → письмо  
 3. **Приветствие** — фиксированный шаблон, без отдельного HITL  
-4. **Встречи** — план + `yandex_calendar_create_event` / при необходимости `update_event` (в т.ч. attendees)  
+4. **Встречи** — план + `google_calendar_create_event` / при необходимости `update_event` (в т.ч. attendees)  
 5. **Курсы** — рекомендации Stepik + mock `stepik_enroll` → письмо сотруднику  
 6. **Испытательный срок** — Excel «Цели на ИС» + таблица в чат → Jira Epic/задачи → письмо с вложением `.xlsx`
 

@@ -1,12 +1,16 @@
 # Capability map онбординга
 
-Статус: проверено по live discovery 2026-07-18. Полные имена зависят от сохраненных `server_id` в Ouroboros Settings.
+Статус: 2026-07-19. Почта и календарь — **только Google** (`gmail`, `google_calendar`). Yandex mail/calendar MCP отключены.
+
+Полные имена tools зависят от `server_id` в Ouroboros Settings (`gmail`, `google_calendar`).
 
 ## Обязательный preflight task
 
 Перед первым этапом проверь наличие перечисленных tools в capability envelope. MCP недоступны в ephemeral-turn.
 
 Не вызывай `*_verify` автоматически при каждом прогоне: это live-проверки внешних сервисов. Используй их только для диагностики или явного preflight, не для бизнес-действий.
+
+**Не используй** `mcp_yandex_mail__*` и `mcp_yandex_calendar__*`, даже если они видны в envelope.
 
 ## Источники знаний
 
@@ -35,17 +39,19 @@ Capability `{access_policy_read}`:
 
 Capability `{mail_send_by_id}`:
 
-- `mcp_yandex_mail__yandex_mail_send(to, subject, text, cc?, bcc?)`.
+- `mcp_gmail__gmail_send(to, subject, text, cc?, bcc?, attachments?)`.
 
 Capability `{mail_reconcile}`:
 
-- `mcp_yandex_mail__yandex_mail_list_folders()`;
-- `mcp_yandex_mail__yandex_mail_list_messages(folder?, limit?, since?, unseen_only?)`;
-- `mcp_yandex_mail__yandex_mail_get_message(folder?, uid)`.
+- `mcp_gmail__gmail_list_folders()`;
+- `mcp_gmail__gmail_list_messages(folder?, limit?, since?, unseen_only?)`;
+- `mcp_gmail__gmail_get_message(folder?, uid)`.
 
-Для reconciliation выбери Sent folder из `list_folders`, ограничь поиск `since` временем попытки, сопоставь уникальный action marker и адресата, затем при необходимости сравни точное тело через `get_message`. Отсутствие письма не разрешает автоматический повтор после неоднозначного SMTP-результата.
+Диагностика: `mcp_gmail__gmail_verify()`.
 
-Ограничение: mail MCP отправляет plain text и не поддерживает вложения.
+Для reconciliation выбери Sent label из `list_folders` (`SENT`), ограничь поиск `since` временем попытки, сопоставь action marker и адресата; при необходимости сравни тело через `get_message`. `uid` — Gmail message id (строка). Отсутствие письма не разрешает автоматический повтор после неоднозначного send.
+
+Тело письма — plain text. Опционально `attachments` (до 3 файлов `{filename, content_base64, content_type?}`, ~5 MiB, xlsx/xls/pdf/md/txt/png/jpg/jpeg/csv). Для этапа ИС вложение .xlsx обязательно, если schema send содержит `attachments`.
 
 ## Этап 2 — бадди
 
@@ -75,19 +81,24 @@ Capability `{company_knowledge}` — Confluence либо Wiki fallback.
 
 Capability `{calendar_availability}`:
 
-- `mcp_yandex_calendar__yandex_calendar_check_ava_a60a71(range_start, range_end, timezone?)`.
-
-Сырой tool name сервера — `yandex_calendar_check_availability`, но Ouroboros публикует сокращенное provider-safe имя с hash-суффиксом. Используй имя из live discovery.
+- `mcp_google_calendar__google_calendar_check_availability(range_start, range_end, timezone?)`;
+- если Ouroboros сократил имя — бери точное из live discovery.
 
 Capability `{calendar_list}`:
 
-- `mcp_yandex_calendar__yandex_calendar_list_events(range_start, range_end, timezone?)`.
+- `mcp_google_calendar__google_calendar_list_events(range_start, range_end, timezone?)`.
 
 Capability `{calendar_create_by_id}`:
 
-- `mcp_yandex_calendar__yandex_calendar_create_event(title, start, duration_minutes|end, timezone?, attendees?, description?, location?, reminder_minutes?, client_token?)`.
+- `mcp_google_calendar__google_calendar_create_event(title, start, duration_minutes|end, timezone?, attendees?, description?, location?, reminder_minutes?, client_token?)`.
 
-`attendees` принимает opaque ID при включенной `CALENDAR_OBFUSCATION`. `yandex_calendar_update_event` поддерживает полную замену `attendees` (opaque IDs).
+Capability `{calendar_update_attendees}`:
+
+- `mcp_google_calendar__google_calendar_update_event(uid, href, etag, patch)` с `patch.attendees` = полная замена opaque ID.
+
+Диагностика: `mcp_google_calendar__google_calendar_verify()`.
+
+`attendees` — opaque ID при `CALENDAR_OBFUSCATION=true`.
 
 ## Этап 5 — курсы
 
@@ -139,7 +150,7 @@ Capability `{jira_plan_rollback}`:
 
 При отсутствии обязательного tool:
 
-1. Не подменяй его похожим инструментом.
+1. Не подменяй его похожим инструментом (в т.ч. не подменяй Gmail на Yandex).
 2. Не заявляй о выполнении.
 3. Верни этапу `BLOCKED`.
 4. Укажи точное имя отсутствующей capability и безопасный ручной следующий шаг.

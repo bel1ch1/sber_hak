@@ -83,13 +83,13 @@ MCP — исполнительный слой. Skills решают «что»; M
 
 Черновики доступов и welcome — skills, не MCP.
 
-### Почта (`mcp/yandex-mail-mcp/`)
+### Почта (`mcp/gmail-mcp/`)
 
-`yandex_mail_send`: opaque ID при обфускации; **вложения** `attachments[{filename, content_base64, content_type?}]` (до 3, ~5 MiB) — нужны для этапа 6. Idempotency key в MCP нет — ведёт оркестратор. В subject/text opaque ID раскрываются в реальные адреса перед SMTP (`expandIdsInText`).
+`gmail_send`: opaque ID при обфускации; **вложения** `attachments[{filename, content_base64, content_type?}]` (до 3, ~5 MiB) — нужны для этапа 6. Idempotency key в MCP нет — ведёт оркестратор. В subject/text opaque ID раскрываются в реальные адреса перед send (`expandIdsInText`). Yandex mail MCP отключён.
 
-### Календарь (`mcp/yandex-calendar-mcp/`)
+### Календарь (`mcp/google-calendar-mcp/`)
 
-Создание, list, update, cancel, availability. Attendees — opaque ID. **`update_event` умеет полную замену `attendees`**. Создание новых онбординг-слотов — основной путь этапа 4; добавление в существующее событие — через update.
+Создание, list, update, cancel, availability через Google Calendar API. Attendees — opaque ID. **`update_event` умеет полную замену `attendees`**. Создание новых онбординг-слотов — основной путь этапа 4; добавление в существующее событие — через update. Yandex calendar MCP отключён.
 
 ### База знаний
 

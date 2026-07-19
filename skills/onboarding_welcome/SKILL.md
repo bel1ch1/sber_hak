@@ -1,7 +1,7 @@
 ---
 name: onboarding_welcome
 description: Собирает проверенные сведения о компании и автоматически отправляет новому сотруднику фиксированное приветственное письмо по opaque employee_id.
-version: 0.1.3
+version: 0.1.4
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 3 «Приветственное письмо» после подтвержденного запуска пайплайна.
 ---
@@ -56,15 +56,15 @@ when_to_use: Главный onboarding-оркестратор делегируе
 ## Preflight интеграций
 
 1. Проверь наличие и schemas mail tools:
-   - `mcp_yandex_mail__yandex_mail_verify`;
-   - `mcp_yandex_mail__yandex_mail_list_folders`;
-   - `mcp_yandex_mail__yandex_mail_list_messages`;
-   - `mcp_yandex_mail__yandex_mail_get_message`;
-   - `mcp_yandex_mail__yandex_mail_send`.
+   - `mcp_gmail__gmail_verify`;
+   - `mcp_gmail__gmail_list_folders`;
+   - `mcp_gmail__gmail_list_messages`;
+   - `mcp_gmail__gmail_get_message`;
+   - `mcp_gmail__gmail_send`.
 2. Проверь, что доступен хотя бы один полный набор источника:
    - Confluence: `mcp_confluence__confluence_verify`, `mcp_confluence__confluence_search`, `mcp_confluence__confluence_get_page`;
    - Wiki fallback: `mcp_wiki__wiki_list_pages`, `mcp_wiki__wiki_get_page`.
-3. Вызови read-only `mcp_confluence__confluence_verify()` либо `mcp_wiki__wiki_list_pages()` для выбранного источника и `mcp_yandex_mail__yandex_mail_verify()`.
+3. Вызови read-only `mcp_confluence__confluence_verify()` либо `mcp_wiki__wiki_list_pages()` для выбранного источника и `mcp_gmail__gmail_verify()`.
 4. Если mail недоступен, schema несовместима, verify вернул error/malformed-ответ либо оба источника недоступны, не формируй и не отправляй письмо; верни `BLOCKED` с точной причиной.
 
 ## Источник
@@ -116,11 +116,11 @@ when_to_use: Главный onboarding-оркестратор делегируе
 ## Исполнение
 
 1. Сформируй action marker и operation key по разделу «Идемпотентность» этого файла.
-2. Сначала верни `PREPARED`, полный payload, key/hash и не вызывай send. Только в следующем запуске с подтвержденной записью `PENDING`, совпадающими key/hash/version `fixed-1` и `execute_authorized=true` вызови `mcp_yandex_mail__yandex_mail_send(to=[employee_id], subject=<rendered subject>, text=<rendered body>)`.
+2. Сначала верни `PREPARED`, полный payload, key/hash и не вызывай send. Только в следующем запуске с подтвержденной записью `PENDING`, совпадающими key/hash/version `fixed-1` и `execute_authorized=true` вызови `mcp_gmail__gmail_send(to=[employee_id], subject=<rendered subject>, text=<rendered body>)`.
 3. Не передавай email модели.
 4. Успех подтвержден только если ответ содержит непустой `message_id`, `accepted` содержит `employee_id`, а `rejected` пуст. Только тогда сохрани безопасный `message_id` и статус `EXECUTED`.
 5. При ошибке, partial/malformed-ответе или timeout верни `BLOCKED` и не заявляй об отправке.
-6. После неизвестного результата вызови `mcp_yandex_mail__yandex_mail_list_folders()`, определи Sent path, затем `mcp_yandex_mail__yandex_mail_list_messages(folder=<sent path>, since=<attempt_started_at>, limit=100)`. Сопоставь action marker, `employee_id` и время; при необходимости сравни тело через `mcp_yandex_mail__yandex_mail_get_message(folder=<sent path>, uid=<найденный uid>)`. При неоднозначности не повторяй send и запроси ручную проверку.
+6. После неизвестного результата вызови `mcp_gmail__gmail_list_folders()`, определи Sent path, затем `mcp_gmail__gmail_list_messages(folder=<sent path>, since=<attempt_started_at>, limit=100)`. Сопоставь action marker, `employee_id` и время; при необходимости сравни тело через `mcp_gmail__gmail_get_message(folder=<sent path>, uid=<найденный uid>)`. При неоднозначности не повторяй send и запроси ручную проверку.
 7. Верни руководителю краткий отчет, а не полный текст письма.
 
 ## Выход

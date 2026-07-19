@@ -1,7 +1,7 @@
 ---
 name: onboarding_calendar
-description: Готовит согласуемый план командных, HR- и 1:1-встреч, проверяет календарь и после подтверждения создаёт события с обезличенными attendee IDs.
-version: 0.1.2
+description: Готовит согласуемый план онбординг-встреч (командные/HR/1:1), создаёт события или обновляет attendees существующих через calendar MCP с opaque IDs.
+version: 0.2.0
 type: instruction
 when_to_use: Главный onboarding-оркестратор делегирует этап 4 «Встречи» для нового сотрудника.
 ---
@@ -18,9 +18,11 @@ when_to_use: Главный onboarding-оркестратор делегируе
 
 ## Идемпотентность
 
-Алгоритм ниже самодостаточен для этого skill pack; не требуй внешних файлов правил. Считай ключи отдельно для каждого создаваемого события.
+Алгоритм ниже самодостаточен для этого skill pack; не требуй внешних файлов правил. Считай ключи отдельно для каждого события/операции.
 
-1. Action marker события: `m_` + первые 16 hex-символов lowercase SHA-256 от canonical UTF-8 JSON с отсортированными ключами и без payload:
+1. Action marker: `m_` + первые 16 hex-символов lowercase SHA-256 от canonical UTF-8 JSON с отсортированными ключами и без payload:
+
+Для **нового** события:
 
 ```json
 {
@@ -32,71 +34,73 @@ when_to_use: Главный onboarding-оркестратор делегируе
 }
 ```
 
-Включи marker в `title` нового события до вычисления payload hash. `stable_event_slot` — стабильный ярлык слота из утвержденного плана, например `team-kickoff`, `hr-intro`, `1on1-manager`, `1on1-buddy`.
-
-2. `payload_sha256` = lowercase SHA-256 canonical UTF-8 полного утвержденного payload события: `title`, `start`, `duration_minutes` или `end`, `timezone`, `attendees`, `description`.
-
-3. Operation key: `op_` + lowercase SHA-256 от canonical UTF-8 JSON с отсортированными ключами:
+Для **обновления attendees** существующего:
 
 ```json
 {
-  "action": "calendar-create:<stable_event_slot>",
+  "action": "calendar-update-attendees:<stable_event_slot>",
   "approved_version": "<approved_version>",
   "onboarding_id": "<onboarding_id>",
-  "payload_sha256": "<payload_sha256>",
   "stage": 4,
   "target_ids": ["<sorted opaque attendee ids>"]
 }
 ```
 
-Строки не обрезай и не нормализуй кроме UTF-8; `target_ids` сортируй. `client_token` = первые 32 hex-символа operation key после префикса `op_`.
+Включи marker в `title` **нового** события до вычисления payload hash. `stable_event_slot` — например `team-kickoff`, `hr-intro`, `1on1-manager`, `1on1-buddy`.
+
+2. `payload_sha256` = lowercase SHA-256 canonical UTF-8 полного утвержденного payload:
+   - create: `title`, `start`, `duration_minutes` или `end`, `timezone`, `attendees`, `description`;
+   - update: `uid`, `href`, `etag`, `patch.attendees` (полный список).
+
+3. Operation key: `op_` + lowercase SHA-256 от canonical UTF-8 JSON с отсортированными ключами (`action`, `approved_version`, `onboarding_id`, `payload_sha256`, `stage`, `target_ids`).
+
+Строки не обрезай и не нормализуй кроме UTF-8; `target_ids` сортируй. Для create: `client_token` = первые 32 hex-символа operation key после префикса `op_`.
 
 ## Preflight интеграций
 
 1. Проверь наличие и schemas calendar tools:
-   - `mcp_yandex_calendar__yandex_calendar_verify`;
-   - `mcp_yandex_calendar__yandex_calendar_list_events`;
-   - `mcp_yandex_calendar__yandex_calendar_check_ava_a60a71`;
-   - `mcp_yandex_calendar__yandex_calendar_create_event`.
+   - `mcp_google_calendar__google_calendar_verify`;
+   - `mcp_google_calendar__google_calendar_list_events`;
+   - `mcp_google_calendar__google_calendar_check_availability` (или сокращённое имя из live discovery);
+   - `mcp_google_calendar__google_calendar_create_event`;
+   - `mcp_google_calendar__google_calendar_update_event` (нужен, если план содержит join existing).
 2. Проверь, что доступен хотя бы один источник правил:
    - Confluence: `mcp_confluence__confluence_verify`, `mcp_confluence__confluence_search`, `mcp_confluence__confluence_get_page`;
    - Wiki fallback: `mcp_wiki__wiki_list_pages` и `mcp_wiki__wiki_get_page`.
-3. Вызови read-only `mcp_yandex_calendar__yandex_calendar_verify()` и `mcp_confluence__confluence_verify()` либо `mcp_wiki__wiki_list_pages()` для выбранного источника.
-4. Если calendar capability недоступна, schema несовместима или ни один источник правил не отвечает валидно, не формируй непроверенный план и не создавай события; верни `BLOCKED` с точной причиной.
+3. Вызови read-only `mcp_google_calendar__google_calendar_verify()` и `mcp_confluence__confluence_verify()` либо `mcp_wiki__wiki_list_pages()` для выбранного источника.
+4. Если calendar capability недоступна, schema несовместима или ни один источник правил не отвечает валидно — `BLOCKED` с точной причиной.
 
 ## Подготовка
 
-1. Получи правила и перечень встреч через `mcp_confluence__confluence_search(query=<team и onboarding meetings>)` → `mcp_confluence__confluence_get_page(page_id=<id из search>)`; Wiki fallback: `mcp_wiki__wiki_list_pages()` → `mcp_wiki__wiki_get_page(slug=<выбранный slug правил встреч>)`.
-2. Определи ограниченный период планирования `range_start`/`range_end` из `start_date` и правил, не более 92 дней для availability.
-3. Прочитай события через `mcp_yandex_calendar__yandex_calendar_list_events(range_start=<range_start>, range_end=<range_end>, timezone=<timezone>)`.
-4. Проверь доступность через `mcp_yandex_calendar__yandex_calendar_check_ava_a60a71(range_start=<range_start>, range_end=<range_end>, timezone=<timezone>)` (сырой tool name сервера: `yandex_calendar_check_availability`).
-5. Сформируй:
-   - необходимые командные встречи;
-   - HR-встречу;
-   - 1:1 с `manager_id`;
-   - 1:1 с `buddy_id`, если он выбран и предусмотрен правилами.
-6. Для каждой встречи покажи название, назначение, дату, время, длительность, timezone и opaque attendee IDs.
-   В название каждого нового события добавь уникальный `[<action_marker>]`, сформированный по разделу «Идемпотентность» этого файла.
-7. Не утверждай доступность календарей, которые tool фактически не проверял.
-8. Если чтение правил, списка событий или проверка доступности вернули ошибку либо malformed-ответ, верни `BLOCKED`; не подменяй результат предположениями и не переходи к созданию событий.
-9. Проверь `busy_blocks` и `warnings`. Периоды с warning о нераскрытой recurrence или иной неполноте считай неизвестными и не планируй в них встречу без нового валидного availability-ответа.
+1. Получи правила встреч через Confluence search/get; Wiki fallback: `wiki_get_page` (демо: страница команды, напр. `team-payments`).
+2. Определи период `range_start`/`range_end` из `start_date` и правил, не более 92 дней для availability.
+3. `list_events` + `check_availability` (tool: `google_calendar_check_availability` или имя из discovery) для периода.
+4. Сформируй план слотов:
+   - онбординг-слоты (team-kickoff / intro, HR, 1:1 manager, 1:1 buddy при наличии);
+   - при явном требовании правил — **добавление** `employee_id` в существующую командную встречу через update attendees (не разворачивай все recurring-инстансы на месяцы без явного правила).
+5. Для каждой операции укажи тип (`create` | `update_attendees`), название/uid, дату-время, timezone, opaque attendees.
+6. Не утверждай доступность календарей, которые tool не проверял.
+7. При ошибке/malformed list/availability — `BLOCKED`. Периоды с warning о нераскрытой recurrence считай неизвестными.
 
-## Ограничение существующих событий
+## Create vs update
 
-`yandex_calendar_update_event` поддерживает полную замену `attendees` (opaque IDs). Предпочитай создавать новые онбординг-события; существующую командную встречу обновляй только если это явно в утвержденном плане. Не отменяй чужую встречу без отдельного решения руководителя. Если capability календаря недоступна — `BLOCKED`.
+- **По умолчанию** создавай новые онбординг-события через `create_event` с opaque `attendees`.
+- **Update attendees** (`update_event` + `patch.attendees` = полный список) — только если это явно в утвержденном плане и известны `uid`/`href`/`etag` из `list_events`.
+- `patch.attendees: []` очищает участников — не используй без явного решения руководителя.
+- Не отменяй чужую командную встречу без отдельного решения.
 
 ## Согласование и исполнение
 
-Полная версия должна перечислять каждое создаваемое событие.
+Полная версия перечисляет каждое действие create/update.
 
-- Пока `approved_version != draft_version`, не создавай события.
+- Пока `approved_version != draft_version`, не вызывай write.
 - После правок увеличь версию и покажи весь список.
-- Для каждого события сформируй action marker и operation key по разделу «Идемпотентность» этого файла.
-- При совпадении версий сначала верни `PREPARED`, полный payload каждого события, key/hash и не создавай события. Только в следующем запуске с записью `PENDING`, совпадающими key/hash/version и `execute_authorized=true` вызови `mcp_yandex_calendar__yandex_calendar_create_event(title=<approved title with action marker>, start=<approved start>, duration_minutes=<approved duration>, timezone=<approved timezone>, attendees=<approved opaque IDs>, description=<approved description + " onboarding:<employee_id>">, client_token=<первые 32 hex-символа operation key после префикса op_>)`.
-- Не передавай одновременно `duration_minutes` и `end`. Все аргументы должны точно соответствовать утвержденной версии.
-- Успех создания подтвержден только при непустых `uid`, `href`, `etag` и `invite_status="scheduled"`. `warnings=["served_from_cache"]` допустим как подтвержденный идемпотентный результат. `invite_status="scheduled_with_warnings"` или иные warnings сохрани как частичный результат и верни `BLOCKED` с точным предупреждением.
-- После timeout/неизвестного результата сначала вызови `list_events` для того же периода и сопоставь точные title с action marker, start и attendees. Если результат не определяется однозначно, не повторяй create даже после истечения cache `client_token`; верни `BLOCKED` для ручной проверки.
-- Частичный успех отрази по каждому событию; не повторяй успешные или неоднозначные операции.
+- Для каждой операции: `PREPARED` (payload + key/hash), затем при `PENDING` + `execute_authorized=true`:
+  - **create:** `google_calendar_create_event(title=<с action marker>, start, duration_minutes, timezone, attendees, description + " onboarding:<employee_id>", client_token)`;
+  - **update:** `google_calendar_update_event(uid, href, etag, patch={attendees:[...]})`.
+- Не передавай одновременно `duration_minutes` и `end`.
+- Успех create/update: непустые `uid`, `href`, `etag` и `invite_status` из `scheduled|scheduled_with_warnings` (второй — частичный результат + `BLOCKED` с warning, если критично).
+- После timeout: reconcile через `list_events` (title/marker/start/attendees или uid+etag); при неоднозначности не повторяй write.
 
 ## Выход
 
