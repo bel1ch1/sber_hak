@@ -1,0 +1,2 @@
+# Host-only TLS for Windows. Docker Linux images ignore this file if not copied.
+native-tls = true

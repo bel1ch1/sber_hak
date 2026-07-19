@@ -1,0 +1,24 @@
+{
+  "name": "gmail-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "tsx server.ts",
+    "server:http": "tsx server.ts --http",
+    "auth": "tsx get-refresh-token.ts",
+    "test": "node --import tsx --test --test-reporter=spec gmail-schemas.test.ts obfuscation.test.ts recipient-directory.test.ts",
+    "build:check": "npx esbuild server.ts --bundle --platform=node --target=node24 --format=esm --outfile=.build-check/server.mjs --packages=external && echo build:check ok"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "googleapis": "^148.0.0",
+    "nodemailer": "^6.10.0",
+    "tsx": "^4.20.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.17",
+    "esbuild": "^0.25.0"
+  }
+}

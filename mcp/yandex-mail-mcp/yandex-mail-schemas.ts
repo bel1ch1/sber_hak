@@ -17,12 +17,26 @@ export const GetMessageInput = z.object({
   uid: z.number().int().positive(),
 })
 
+/** One SMTP attachment: filename + base64 payload (no data: URL prefix). */
+export const MailAttachment = z.object({
+  filename: z
+    .string()
+    .min(1)
+    .max(200)
+    .regex(/^[\w.\- ()а-яА-ЯёЁ]+\.(xlsx|xls|pdf|md|txt|png|jpg|jpeg|csv)$/u, {
+      message: "filename must be a safe name with allowed extension",
+    }),
+  content_base64: z.string().min(1).max(7_000_000), // ~5 MiB decoded
+  content_type: z.string().min(3).max(120).optional(),
+})
+
 export const SendMailInput = z.object({
   to: z.array(z.string().email()).min(1).max(50),
   subject: z.string().min(1).max(500),
   text: z.string().min(1).max(100_000),
   cc: z.array(z.string().email()).max(50).optional(),
   bcc: z.array(z.string().email()).max(50).optional(),
+  attachments: z.array(MailAttachment).max(3).optional(),
 })
 
 // Obfuscated variant: recipients are opaque IDs, never email addresses.
@@ -40,4 +54,5 @@ export const SendMailByIdInput = z.object({
   text: z.string().min(1).max(100_000),
   cc: z.array(RecipientId).max(50).optional(),
   bcc: z.array(RecipientId).max(50).optional(),
+  attachments: z.array(MailAttachment).max(3).optional(),
 })

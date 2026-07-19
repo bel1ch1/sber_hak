@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.build-check/
+*.log
+.env
+.env.*
+!.env.example
+client_secret*.json
+tokens.json

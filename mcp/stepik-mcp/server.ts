@@ -11,6 +11,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod"
 
 import { runServer } from "./http-transport.ts"
+import { appendEnrollment, resolveEnrollmentsPath } from "./enrollments-store.ts"
 import {
   buildOnboardingSuggestion,
   getCoursesByRole,
@@ -102,7 +103,7 @@ export function buildServer(): McpServer {
     "stepik_suggest_onboarding",
     "Builds a human-readable onboarding plan with Stepik course links for a role. READ-ONLY. " +
       "Use in onboarding pipeline: pass employee role, return markdown with links to share. " +
-      "Does not enroll users — only suggests courses.",
+      "Does not enroll — call stepik_enroll with the chosen course list to record enrollment.",
     {
       role: z.string().min(1).max(200),
       include_soft_skills: z.boolean().optional(),
@@ -148,6 +149,58 @@ export function buildServer(): McpServer {
               matched,
               input: args.role,
               courseCount: getCoursesByRole(courses, matched).length,
+            },
+            null,
+            2,
+          ),
+        )
+      } catch (e) {
+        return asText(e instanceof Error ? e.message : String(e))
+      }
+    },
+  )
+
+  server.tool(
+    "stepik_enroll",
+    "Records a mock enrollment of courses for an employee (local JSON store). " +
+      "Does NOT call Stepik.org API — pass the chosen course list (title + description, optional url). " +
+      "Use after stepik_get_courses_by_role / stepik_suggest_onboarding. " +
+      "Returns enrollment_id for the onboarding courses email.",
+    {
+      employee_id: z.string().min(1).max(64),
+      courses: z
+        .array(
+          z.object({
+            title: z.string().min(1).max(500),
+            description: z.string().min(1).max(4000),
+            url: z.string().url().optional(),
+          }),
+        )
+        .min(1)
+        .max(30),
+      role: z.string().min(1).max(200).optional(),
+      note: z.string().max(2000).optional(),
+    },
+    async (args) => {
+      try {
+        const storePath = resolveEnrollmentsPath(PACKAGE_DIR)
+        const record = await appendEnrollment(storePath, {
+          employee_id: args.employee_id,
+          courses: args.courses,
+          role: args.role,
+          note: args.note,
+        })
+        return asText(
+          JSON.stringify(
+            {
+              ok: true,
+              enrollment_id: record.enrollment_id,
+              employee_id: record.employee_id,
+              courses: record.courses,
+              role: record.role ?? null,
+              note: record.note ?? null,
+              enrolled_at: record.enrolled_at,
+              store: "local",
             },
             null,
             2,

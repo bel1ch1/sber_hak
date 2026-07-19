@@ -1,0 +1,15 @@
+[project]
+name = "jira-mcp"
+version = "0.1.0"
+description = "Jira MCP connector for Ouroboros onboarding"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=1.6,<2.0",
+    "httpx",
+    "pyyaml",
+    "openpyxl>=3.1,<4.0",
+]
+
+[tool.uv]
+package = false

@@ -20,6 +20,7 @@ import {
   listMessages,
   getMessage,
   sendMail,
+  verifyMailConnection,
 } from "./yandex-mail-client.ts"
 import {
   ListMessagesInput,
@@ -101,6 +102,21 @@ export function buildServer(): McpServer {
   )
 
   server.tool(
+    "yandex_mail_verify",
+    "Проверка доступа к Яндекс.Почте: IMAP LIST folders. READ-ONLY, писем не читает и не шлёт.",
+    {},
+    async () => {
+      try {
+        const { creds } = await getContext()
+        const result = await verifyMailConnection(creds)
+        return asText(JSON.stringify({ ok: true, ...result }, null, 2))
+      } catch (e) {
+        return asText(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }, null, 2))
+      }
+    },
+  )
+
+  server.tool(
     "yandex_mail_list_messages",
     "Lists message headers in a folder via IMAP. READ-ONLY. " +
       "Returns uid, subject, from, to, date, seen. Use uid + folder with yandex_mail_get_message for body. " +
@@ -150,15 +166,28 @@ export function buildServer(): McpServer {
   // Send-tool contract depends on the privacy mode. With obfuscation ON the
   // agent addresses recipients by opaque ID; the MCP resolves ID -> email
   // server-side, so the LLM never handles a real address.
+  const attachmentShape = z
+    .array(
+      z.object({
+        filename: z.string().min(1).max(200),
+        content_base64: z.string().min(1).max(7_000_000),
+        content_type: z.string().min(3).max(120).optional(),
+      }),
+    )
+    .max(3)
+    .optional()
+
   const sendDescription = obfuscationOn
     ? "Sends an email via Yandex SMTP. SIDE EFFECT — sends real mail. " +
       "PRIVACY MODE: to/cc/bcc are opaque recipient IDs (e.g. usr_a1b2c3, self, or an ext_… token seen in received mail), NOT email addresses. " +
       "The MCP maps IDs to real addresses internally; you never see or type an email. Unknown IDs are rejected. " +
-      "Requires MAIL_SEND_ENABLED=true. Max 50 recipients total (to+cc+bcc). Plain text only; no attachments. " +
+      "In subject/text, write the same opaque IDs (e.g. usr_employee) — before SMTP the MCP expands known IDs to real logins/emails so the recipient sees the address, not the id. " +
+      "Requires MAIL_SEND_ENABLED=true. Max 50 recipients total (to+cc+bcc). " +
+      "Optional attachments: up to 3 files as {filename, content_base64, content_type?}; max ~5 MiB each; allowed extensions xlsx/xls/pdf/md/txt/png/jpg/jpeg/csv. " +
       "Skill should use draft/approve before calling in agent workflows."
     : "Sends an email via Yandex SMTP. SIDE EFFECT — sends real mail. " +
       "Requires MAIL_SEND_ENABLED=true in MCP config. Max 50 recipients total (to+cc+bcc). " +
-      "Plain text body only in v1. Does NOT attach files. " +
+      "Plain text body; optional attachments {filename, content_base64} (max 3, ~5 MiB each). " +
       "Skill should use draft/approve before calling in agent workflows."
 
   const sendShape = obfuscationOn
@@ -168,6 +197,7 @@ export function buildServer(): McpServer {
         text: z.string().min(1).max(100_000),
         cc: z.array(z.string().min(1).max(64)).max(50).optional(),
         bcc: z.array(z.string().min(1).max(64)).max(50).optional(),
+        attachments: attachmentShape,
       }
     : {
         to: z.array(z.string().email()).min(1).max(50),
@@ -175,6 +205,7 @@ export function buildServer(): McpServer {
         text: z.string().min(1).max(100_000),
         cc: z.array(z.string().email()).max(50).optional(),
         bcc: z.array(z.string().email()).max(50).optional(),
+        attachments: attachmentShape,
       }
 
   server.tool("yandex_mail_send", sendDescription, sendShape, async (args) => {
@@ -207,13 +238,18 @@ export function buildServer(): McpServer {
 
       const result = await sendMail(creds, {
         to: to.emails,
-        subject: parsed.data.subject,
-        text: parsed.data.text,
+        subject: obf.expandIdsInText(parsed.data.subject),
+        text: obf.expandIdsInText(parsed.data.text),
         cc: cc.emails.length ? cc.emails : undefined,
         bcc: bcc.emails.length ? bcc.emails : undefined,
+        attachments: parsed.data.attachments,
       })
-      // Mask the accepted/rejected addresses back to IDs before returning.
-      return asText(JSON.stringify(obf.maskSendResult(result), null, 2))
+      const masked = obf.maskSendResult(result, {
+        to: parsed.data.to,
+        cc: parsed.data.cc,
+        bcc: parsed.data.bcc,
+      })
+      return asText(JSON.stringify(masked, null, 2))
     } catch (e) {
       return asText(e instanceof Error ? e.message : String(e))
     }

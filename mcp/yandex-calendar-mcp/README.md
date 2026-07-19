@@ -6,7 +6,7 @@ MCP-сервер для Яндекс Календаря через CalDAV (`cald
 |---|---|
 | `yandex_calendar_create_event` | Создать событие (+приглашения, идемпотентность по client_token) |
 | `yandex_calendar_list_events` | События в диапазоне (до 366 дней), включая отменённые |
-| `yandex_calendar_update_event` | Правка события по uid/href/etag (кроме recurring и attendees) |
+| `yandex_calendar_update_event` | Правка события по uid/href/etag (кроме recurring); attendees — полная замена списка |
 | `yandex_calendar_cancel_event` | Отмена с iTIP CANCEL-письмом участникам |
 | `yandex_calendar_check_availability` | Занятые блоки (до 92 дней), recurring разворачивается сервером |
 

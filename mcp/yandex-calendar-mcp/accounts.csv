@@ -1,0 +1,16 @@
+# accounts.csv — id → email внутри calendar-MCP (агент передаёт id attendees).
+#
+# Demo pipeline: рабочие роли/ID → andreyzv5555@gmail.com
+# (Yandex MCP legacy / profile "yandex"; preferred calendar is google-calendar-mcp).
+#
+# Columns: id,email,label
+id,email,label
+usr_manager,andreyzv5555@gmail.com,Manager (demo)
+usr_employee,andreyzv5555@gmail.com,New hire (demo)
+usr_hr,andreyzv5555@gmail.com,HR (demo)
+usr_buddy,andreyzv5555@gmail.com,Buddy PRIMARY
+usr_buddy_b,buddy.b@example.invalid,Buddy decoy B
+usr_buddy_c,buddy.c@example.invalid,Buddy decoy C
+usr_k1m2n3,andreyzv5555@gmail.com,Hire id alias
+usr_p8q2w4,andreyzv5555@gmail.com,Clean-recording hire id
+usr_r3s7t9,andreyzv5555@gmail.com,Clean-recording hire id

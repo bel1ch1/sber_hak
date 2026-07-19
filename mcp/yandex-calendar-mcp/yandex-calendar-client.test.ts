@@ -656,6 +656,46 @@ describe("updateEvent", () => {
     expect(puts[0].calendarObject.data).toMatch(/DTSTART:20260515T090000Z/)
   })
 
+  it("replaces attendees when patch.attendees is set (full replace)", async () => {
+    const puts: any[] = []
+    stub(plainIcs, puts)
+    await updateEvent({
+      caldavUrl: "https://caldav.yandex.ru/",
+      calendarUrl: "https://x/cal/",
+      login: "me@yandex.ru",
+      password: "pw",
+      input: {
+        uid: "u1",
+        href: "https://x/cal/u1.ics",
+        etag: '"orig-etag"',
+        patch: { attendees: ["new@example.com", "buddy@example.com"] },
+      },
+    })
+    const ics = puts[0].calendarObject.data as string
+    expect(ics).toMatch(/mailto:new@example\.com/)
+    expect(ics).toMatch(/mailto:buddy@example\.com/)
+    expect(ics).not.toMatch(/mailto:a@b\.com/)
+  })
+
+  it("clears attendees when patch.attendees is empty array", async () => {
+    const puts: any[] = []
+    stub(plainIcs, puts)
+    await updateEvent({
+      caldavUrl: "https://caldav.yandex.ru/",
+      calendarUrl: "https://x/cal/",
+      login: "me@yandex.ru",
+      password: "pw",
+      input: {
+        uid: "u1",
+        href: "https://x/cal/u1.ics",
+        etag: '"orig-etag"',
+        patch: { attendees: [] },
+      },
+    })
+    const ics = puts[0].calendarObject.data as string
+    expect(ics).not.toMatch(/ATTENDEE/)
+  })
+
   it("shifts start only — preserves duration via §4.4.1 matrix", async () => {
     const puts: any[] = []
     stub(plainIcs, puts)

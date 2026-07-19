@@ -2,7 +2,7 @@
 
 MCP-сервер: рекомендации курсов **Stepik** для онбординга. Читает каталог курсов
 из Excel (`stepik_courses_by_role.xlsx`) и подбирает курсы по роли сотрудника.
-READ-ONLY, никого никуда не записывает — только предлагает ссылки.
+Зачисление — локальный mock (`stepik_enroll`), без вызовов Stepik.org API.
 
 | Инструмент | Что делает |
 |---|---|
@@ -10,6 +10,7 @@ READ-ONLY, никого никуда не записывает — только 
 | `stepik_get_courses_by_role` | Курсы для роли (JSON). Псевдонимы ролей: IT, QA, PM… |
 | `stepik_suggest_onboarding` | Готовый markdown-план с ссылками для сотрудника |
 | `stepik_match_role` | Разрешает свободный текст роли в каноничное имя |
+| `stepik_enroll` | Фиксирует выбранный список курсов (title/description/url) локально |
 
 ## Каталог (Excel)
 
@@ -60,7 +61,8 @@ MCP_TRANSPORT=http MCP_HTTP_PORT=3003 node --import tsx server.ts --http
 
 ## Ограничения v0.1
 
-- Источник — статичный Excel; онлайн-API Stepik не дёргается
+- Источник каталога — статичный Excel; онлайн-API Stepik не дёргается
+- `stepik_enroll` пишет только локальный `enrollments.json` (mock), не регистрирует на stepik.org
 - Матчинг роли по псевдонимам/подстроке; частотное слово `разработчик`
   (в отличие от `разработка`/`IT`) в псевдонимах пока нет — при необходимости
   добавьте в `ROLE_ALIASES` в `stepik-catalog.ts`

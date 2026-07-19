@@ -42,6 +42,16 @@ describe("SendMailInput", () => {
   it("rejects empty to", () => {
     assert.throws(() => SendMailInput.parse({ to: [], subject: "x", text: "y" }))
   })
+
+  it("accepts optional xlsx attachment", () => {
+    const r = SendMailInput.parse({
+      to: ["a@yandex.ru"],
+      subject: "Hi",
+      text: "Body",
+      attachments: [{ filename: "plan.xlsx", content_base64: "UEsDBAo=" }],
+    })
+    assert.equal(r.attachments?.[0]?.filename, "plan.xlsx")
+  })
 })
 
 describe("SendMailByIdInput / RecipientId", () => {

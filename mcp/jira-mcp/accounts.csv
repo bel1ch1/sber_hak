@@ -1,0 +1,16 @@
+# accounts.csv — opaque id → Jira identity (PII stays in MCP).
+#
+# Demo assignee (your Jira user): Bell / andreyzv5555@gmail.com
+# jira_account_id pinned — Cloud search hides emails; do not fuzzy-match.
+# Auth token may be a different site admin email; assignee is always from this table.
+#
+# Columns: id,email,label,jira_account_id,display_name
+id,email,label,jira_account_id,display_name
+usr_employee,andreyzv5555@gmail.com,Jira assignee / new hire (demo),712020:506ee904-6d92-41c0-9232-a3e14f055bd8,Bell
+usr_jira_assignee,andreyzv5555@gmail.com,Explicit Jira assignee id,712020:506ee904-6d92-41c0-9232-a3e14f055bd8,Bell
+usr_k1m2n3,andreyzv5555@gmail.com,Hire id alias → Jira assignee,712020:506ee904-6d92-41c0-9232-a3e14f055bd8,Bell
+usr_p8q2w4,andreyzv5555@gmail.com,Clean-recording hire id → Jira assignee,712020:506ee904-6d92-41c0-9232-a3e14f055bd8,Bell
+usr_r3s7t9,andreyzv5555@gmail.com,Clean-recording hire id → Jira assignee,712020:506ee904-6d92-41c0-9232-a3e14f055bd8,Bell
+usr_manager,andreyzv5555@gmail.com,Manager alias (same demo Jira user),712020:506ee904-6d92-41c0-9232-a3e14f055bd8,Bell
+usr_hr,andreyzv5555@gmail.com,HR alias (same demo Jira user),712020:506ee904-6d92-41c0-9232-a3e14f055bd8,Bell
+usr_buddy,andreyzv5555@gmail.com,Buddy alias (same demo Jira user),712020:506ee904-6d92-41c0-9232-a3e14f055bd8,Bell

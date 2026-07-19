@@ -146,5 +146,19 @@ class ConfluenceClient:
         d = self._req("POST", "/content", json=payload).json()
         return {"id": d.get("id"), "title": d.get("title"), "url": self.web_url(d.get("id"))}
 
+    def update_page(self, page_id: str, title: str, body_md: str):
+        """Update page body (and title). Requires current version number from GET."""
+        cur = self._req("GET", f"/content/{page_id}", params={"expand": "version"}).json()
+        version = int((cur.get("version") or {}).get("number") or 0) + 1
+        payload = {
+            "id": page_id,
+            "type": "page",
+            "title": title,
+            "version": {"number": version},
+            "body": {"storage": {"value": text_to_storage(body_md), "representation": "storage"}},
+        }
+        d = self._req("PUT", f"/content/{page_id}", json=payload).json()
+        return {"id": d.get("id"), "title": d.get("title"), "version": version, "url": self.web_url(d.get("id"))}
+
     def delete_page(self, page_id: str):
         self._req("DELETE", f"/content/{page_id}")

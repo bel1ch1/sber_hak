@@ -16,25 +16,6 @@
 | `mcp/` | `workspace/` | MCP-серверы — общий код; рабочие файлы — у каждого свои |
 | `memory/identity.md`, `memory/knowledge/**` | `memory/knowledge/outcomes/` | Базовая личность и регламенты — общие; исходы прогонов — runtime |
 
-### Структура
-
-```text
-.
-├── OUROBOROS_DEV.md      # гайд (git)
-├── .gitignore            # git
-├── agent.env             # конфиг окружения (git)
-├── .env                  # секреты — создать из agent.env (не в git)
-├── docker-compose.yml    # шаблон ниже (не в git)
-├── ouroboros/            # git clone движка (не в git)
-├── skills/               # playbook'и → /app/data/skills/external (git)
-│   └── _template/
-├── mcp/                  # исходники MCP-серверов (git)
-├── memory/               # память агента → /app/data/memory
-│   ├── identity.md       # git — общий baseline для команды
-│   └── knowledge/        # git — регламенты; outcomes/ — не в git
-└── workspace/            # рабочие файлы → /workspace (не в git)
-```
-
 ### Почему `workspace/` не в git
 
 У каждого разработчика свои входные данные, черновики и артефакты прогонов. Коммитить их в общий репозиторий — шум в PR и риск перетирания чужих файлов. Для примеров входных данных используйте `skills/<name>/fixtures/` или отдельную папку в `mcp/`.
@@ -46,7 +27,9 @@ Outcome cards пишутся агентом после каждого прого
 ### Шаги
 
 1. **Секреты:** скопируйте `agent.env` → `.env`, задайте `OUROBOROS_NETWORK_PASSWORD` и API-ключ провайдера.
-2. **Движок:** `git clone https://github.com/razzant/ouroboros.git` (один раз, в корень проекта).
+2. **Движок:** клонируйте ветку `ouroboros` (не только `main`):
+   `git clone --branch ouroboros --single-branch https://github.com/razzant/ouroboros.git`
+   (один раз, в корень проекта). Dockerfile при сборке сам checkout'ит `ouroboros` и нормализует LF.
 3. **Docker Compose:** создайте `docker-compose.yml` (шаблон — в конце §0).
 4. **Запуск:** `docker compose up -d --build` → http://localhost:8765
 5. **MCP:** поднимите сервер из `mcp/`, зарегистрируйте URL в Settings → Advanced → MCP.
@@ -73,13 +56,15 @@ services:
       - "${OUROBOROS_SERVER_PORT:-8765}:8765"
     environment:
       OUROBOROS_SERVER_HOST: "0.0.0.0"
-      OUROBOROS_DATA_DIR: "/app/data"
+      # Runtime data MUST be outside the Git worktree (/app).
+      # /app/data makes untracked runtime files look like a dirty tree and blocks /restart.
+      OUROBOROS_DATA_DIR: "/data"
       OUROBOROS_FILE_BROWSER_DEFAULT: "/workspace"
     volumes:
-      - ouroboros-data:/app/data
+      - ouroboros-data:/data
       - ./${HACKATHON_WORKSPACE_DIR:-workspace}:/workspace
-      - ./${HACKATHON_SKILLS_DIR:-skills}:/app/data/skills/external
-      - ./${HACKATHON_MEMORY_DIR:-memory}:/app/data/memory
+      - ./${HACKATHON_SKILLS_DIR:-skills}:/data/skills/external
+      - ./${HACKATHON_MEMORY_DIR:-memory}:/data/memory
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -92,10 +77,10 @@ volumes:
 | Действие | Почему |
 |----------|--------|
 | Создать `.env` из `agent.env` | Секреты не в git |
-| Создать `docker-compose.yml` | Инфраструктура не в git |
+| Создать `docker-compose.yml` | Локальный стек с Ouroboros; шаблон §0 + `include: docker-compose.mcp.yml` |
+| MCP без Ouroboros | `docker compose -f docker-compose.mcp.yml up -d --build` (файл **в git**) |
 | `git clone` ouroboros | Движок ~700+ файлов, отдельный upstream |
 | API-ключ в Settings | Провайдер LLM обязателен для супервизора |
-| Запуск MCP-сервера | Ouroboros — клиент, сервер пишете вы в `mcp/` |
 | `git remote add` + push | Публикация репозитория хакатона |
 
 ---

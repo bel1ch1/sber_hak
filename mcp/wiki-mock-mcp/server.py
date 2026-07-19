@@ -20,9 +20,10 @@ from mcp.server.fastmcp import FastMCP
 
 from wiki_store import WikiStore
 
+HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MCP_PORT", "9102"))
 store = WikiStore()
-mcp = FastMCP("wiki", host="127.0.0.1", port=PORT)
+mcp = FastMCP("wiki", host=HOST, port=PORT)
 
 
 @mcp.tool()
@@ -53,5 +54,5 @@ def wiki_list_pages() -> dict:
 
 
 if __name__ == "__main__":
-    print(f"[wiki-mock-mcp] port={PORT} pages={len(store.list())} -> http://127.0.0.1:{PORT}/mcp")
+    print(f"[wiki-mock-mcp] host={HOST} port={PORT} pages={len(store.list())} -> http://{HOST}:{PORT}/mcp")
     mcp.run(transport="streamable-http")

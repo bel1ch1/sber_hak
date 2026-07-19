@@ -1,25 +1,47 @@
-# Шаблон плана на испытательный срок: backend-разработчик (~12 недель).
-# due_offset_days — смещение дедлайна от даты выхода новичка (start_date).
-# Редактируемый файл: правь задачи/сроки под свою команду.
+# Шаблон целей на испытательный срок (backend) для формы «Задачи на ИС».
+# Максимум 10 целей (строки формы). Сумма weight ≈ 1.0.
+# due_offset_days — смещение дедлайна от start_date.
+# Используется и для Excel (HR), и для Jira Epic+Task.
 epic: "Онбординг: {role} — {team}"
-tasks:
-  - {summary: "Настроить рабочее окружение (IDE, репозиторий, зависимости)", due_offset_days: 1}
-  - {summary: "Получить и проверить доступы к рабочим системам", due_offset_days: 1}
-  - {summary: "Установочная встреча с командой", due_offset_days: 1}
-  - {summary: "Прочитать ARCHITECTURE.md и DEVELOPMENT.md сервиса", due_offset_days: 2}
-  - {summary: "Первый 1:1 с бадди", due_offset_days: 3}
-  - {summary: "Оформить план развития на испытательный срок", due_offset_days: 3}
-  - {summary: "Настроить локальный запуск сервиса", due_offset_days: 4}
-  - {summary: "Пройти обязательный security-тренинг", due_offset_days: 5}
-  - {summary: "Разобрать первый good-first-issue тикет", due_offset_days: 5}
-  - {summary: "Первый PR (мелкий фикс)", due_offset_days: 7}
-  - {summary: "Изучить CI/CD пайплайн команды", due_offset_days: 8}
-  - {summary: "Учебный code review чужого PR", due_offset_days: 10}
-  - {summary: "Знакомство со смежными командами и сервисами", due_offset_days: 12}
-  - {summary: "HR чек-ин: обратная связь за 2 недели", due_offset_days: 14}
-  - {summary: "Разобраться в мониторинге и алертах сервиса", due_offset_days: 14}
-  - {summary: "Взять первую боевую задачу (размер S)", due_offset_days: 16}
-  - {summary: "Пройти курс по внутренним стандартам разработки", due_offset_days: 20}
-  - {summary: "Демо результата на командной встрече", due_offset_days: 25}
-  - {summary: "Ретро первого месяца с руководителем", due_offset_days: 30}
-  - {summary: "Финальный чек-ин по итогам испытательного срока", due_offset_days: 80}
+probation_months: 3
+goals:
+  - summary: "Настроить рабочее окружение и проверить доступы"
+    expected_result: "IDE/репозиторий настроены; доступы к рабочим системам проверены"
+    due_offset_days: 7
+    weight: 0.10
+  - summary: "Изучить архитектуру и процессы команды"
+    expected_result: "Пройдены ключевые материалы (ARCHITECTURE/DEVELOPMENT); есть заметки и вопросы к бадди"
+    due_offset_days: 14
+    weight: 0.10
+  - summary: "Закрыть первые учебные задачи (good-first-issue)"
+    expected_result: "Минимум 1 merged PR по учебным тикетам; пройден code review"
+    due_offset_days: 21
+    weight: 0.15
+  - summary: "Пройти обязательные тренинги и курсы онбординга"
+    expected_result: "Security и обязательные курсы по роли завершены (сертификаты/статус в каталоге)"
+    due_offset_days: 30
+    weight: 0.10
+  - summary: "Взять и довести боевую задачу размера S"
+    expected_result: "Задача в проде/на стенде принята PO/тимлидом; демо на командной встрече"
+    due_offset_days: 45
+    weight: 0.15
+  - summary: "Разобраться в CI/CD, мониторинге и алертах сервиса"
+    expected_result: "Может объяснить пайплайн и реакцию на типовой алерт; есть конспект"
+    due_offset_days: 45
+    weight: 0.10
+  - summary: "Выстроить регулярную обратную связь (1:1, чек-ины)"
+    expected_result: "Проведены 1:1 с руководителем/бадди и промежуточный чек-ин (~6 неделя)"
+    due_offset_days: 42
+    weight: 0.10
+  - summary: "Закрыть функциональные цели роли за ИС"
+    expected_result: "Согласованный с руководителем набор функциональных KPI/результатов выполнен"
+    due_offset_days: 70
+    weight: 0.10
+  - summary: "Подготовиться к итоговому чек-ину по ИС"
+    expected_result: "Самооценка по целям заполнена; материалы к итоговой встрече (12 неделя) готовы"
+    due_offset_days: 80
+    weight: 0.05
+  - summary: "Пройти итоговую оценку испытательного срока"
+    expected_result: "Итоговая встреча проведена; совокупное выполнение целей ≥ 90% по оценке руководителя"
+    due_offset_days: 90
+    weight: 0.05

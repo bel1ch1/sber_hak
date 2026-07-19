@@ -1,0 +1,9 @@
+# accounts.csv — каталог бадди (id → email + non-PII профиль).
+# Агент видит только id / role / team / seniority / score.
+# PRIMARY buddy (всегда #1 в buddy_match): usr_buddy → andreyzv5555@gmail.com
+#
+# Columns: id,email,label,role,team,seniority,can_mentor
+id,email,label,role,team,seniority,can_mentor
+usr_buddy,andreyzv5555@gmail.com,Buddy PRIMARY — pick this in demo,backend,Платёжные сервисы,senior,true
+usr_buddy_b,buddy.b@example.invalid,Decoy buddy B,backend,Платёжные сервисы,middle,true
+usr_buddy_c,buddy.c@example.invalid,Decoy buddy C,qa,Платёжные сервисы,senior,true

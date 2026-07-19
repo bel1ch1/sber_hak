@@ -7,7 +7,7 @@ MCP-сервер для **Яндекс.Почты** через IMAP (чтени�
 | `yandex_mail_list_folders` | Список папок IMAP |
 | `yandex_mail_list_messages` | Заголовки писем в папке |
 | `yandex_mail_get_message` | Тело письма по `uid` + `folder` |
-| `yandex_mail_send` | Отправка plain-text письма (SMTP) |
+| `yandex_mail_send` | Отправка письма (SMTP), plain-text + опциональные вложения |
 
 ## Обфускация PII
 
@@ -68,7 +68,7 @@ curl http://localhost:3006/healthz
 
 ## Ограничения v0.1
 
-- Только plain-text при отправке (без вложений)
+- Plain-text тело; опционально до 3 вложений `{filename, content_base64}` (xlsx/pdf/…, ~5 MiB)
 - Нет удаления/перемещения писем
 - `MAIL_SEND_ENABLED=false` отключает `yandex_mail_send`
 - Обфускация касается адресов, не тела письма (см. OBFUSCATION.md → «Границы»)

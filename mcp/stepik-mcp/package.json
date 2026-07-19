@@ -7,7 +7,7 @@
     "server": "with-ca.cmd --import tsx server.ts",
     "server:http": "with-ca.cmd --import tsx server.ts --http",
     "smoke:catalog": "with-ca.cmd --import tsx smoke-catalog.ts",
-    "test": "node --import tsx --test --test-reporter=spec stepik-catalog.test.ts server-factory.test.ts",
+    "test": "node --import tsx --test --test-reporter=spec stepik-catalog.test.ts server-factory.test.ts enrollments-store.test.ts",
     "build:check": "npx esbuild server.ts --bundle --platform=node --target=node24 --format=esm --outfile=.build-check/server.mjs --packages=external && echo build:check ok"
   },
   "dependencies": {

@@ -1,3 +1,5 @@
-mcp>=1.6,<2.0
-httpx
-pyyaml
+# Source of truth for local: pyproject.toml + uv. Docker uses these pins.
+mcp==1.28.1
+httpx==0.28.1
+pyyaml==6.0.3
+openpyxl==3.1.5

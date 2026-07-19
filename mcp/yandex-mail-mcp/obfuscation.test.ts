@@ -88,12 +88,53 @@ describe("resolveRecipients (directory)", () => {
   })
 })
 
+describe("expandIdsInText", () => {
+  it("replaces known ids in body with emails (logins)", () => {
+    const obf = createObfuscator(fixtureDir())
+    const out = obf.expandIdsInText(
+      "Прошу согласовать (кому): usr_1\nСотрудник (id): usr_2\n[onboarding:usr_1]",
+    )
+    assert.equal(
+      out,
+      "Прошу согласовать (кому): ivan@yandex.ru\nСотрудник (id): maria@yandex.ru\n[onboarding:ivan@yandex.ru]",
+    )
+  })
+
+  it("leaves unknown tokens unchanged", () => {
+    const obf = createObfuscator(fixtureDir())
+    assert.equal(obf.expandIdsInText("user usr_999 ok"), "user usr_999 ok")
+  })
+
+  it("expands self after registerSelf", () => {
+    const obf = createObfuscator(fixtureDir())
+    obf.registerSelf("me@yandex.ru")
+    assert.equal(obf.expandIdsInText("from self mailbox"), "from me@yandex.ru mailbox")
+  })
+})
+
 describe("round-trip through send", () => {
-  it("masks accepted addresses back to the ids the agent used", () => {
+  it("returns accepted as the opaque ids the agent requested", () => {
     const obf = createObfuscator(fixtureDir())
     const { emails } = obf.resolveRecipients(["usr_1", "usr_2"])
-    const masked = obf.maskSendResult({ message_id: "x", accepted: emails, rejected: [] })
+    const masked = obf.maskSendResult(
+      { message_id: "x", accepted: emails, rejected: [] },
+      { to: ["usr_1", "usr_2"] },
+    )
     assert.deepEqual(masked.accepted, ["usr_1", "usr_2"])
+  })
+
+  it("keeps role id when demo roles share the self mailbox", () => {
+    const dir = parseRecipientsCsv(
+      ["usr_hr,me@demo.test,HR", "usr_manager,me@demo.test,Manager"].join("\n"),
+    )
+    const obf = createObfuscator(dir)
+    obf.registerSelf("me@demo.test")
+    const { emails } = obf.resolveRecipients(["usr_hr"])
+    const masked = obf.maskSendResult(
+      { messageId: "msg1", accepted: emails, rejected: [] },
+      { to: ["usr_hr"] },
+    )
+    assert.deepEqual(masked.accepted, ["usr_hr"])
   })
 })
 

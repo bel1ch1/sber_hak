@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci && npm cache clean --force
@@ -12,17 +12,17 @@ RUN npx esbuild server.ts \
   --packages=external
 RUN npm prune --omit=dev && npm cache clean --force
 
-FROM node:24-bookworm-slim
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+FROM node:24-alpine
+RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/dist/server.mjs ./dist/server.mjs
 COPY --chown=node:node certs ./certs
+COPY --chown=node:node accounts.csv ./accounts.csv
 ENV NODE_ENV=production \
     MCP_TRANSPORT=http \
+    CALENDAR_OBFUSCATION=true \
     NODE_EXTRA_CA_CERTS=/app/certs/corp-ca.pem
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \

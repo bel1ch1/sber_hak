@@ -33,7 +33,9 @@ class JiraClient:
     def create_issue(self, fields: dict) -> dict: ...
     def bulk_create(self, issues: list) -> list: ...
     def delete_issue(self, key: str) -> None: ...
+    def assign_issue(self, key: str, account_id: str | None) -> None: ...
     def browse_url(self, key: str) -> str: ...
+    def find_account_id(self, email: str) -> str: ...
 
 
 class RealJiraClient(JiraClient):
@@ -71,7 +73,7 @@ class RealJiraClient(JiraClient):
         # Jira Cloud removed the classic /search (HTTP 410) in favour of the
         # enhanced /search/jql endpoint; the same path also works on DC.
         body = {"jql": jql, "maxResults": max_results,
-                "fields": fields or ["summary", "labels", "status", "duedate"]}
+                "fields": fields or ["summary", "labels", "status", "duedate", "assignee"]}
         r = self._req("POST", "/search/jql", json=body)
         out = []
         for it in r.json().get("issues", []):
@@ -81,6 +83,7 @@ class RealJiraClient(JiraClient):
                 "summary": f.get("summary"),
                 "labels": f.get("labels", []),
                 "duedate": f.get("duedate"),
+                "assignee": f.get("assignee"),  # masked to opaque id in server layer
                 "url": self.browse_url(it.get("key")),
             })
         return out
@@ -98,8 +101,34 @@ class RealJiraClient(JiraClient):
     def delete_issue(self, key):
         self._req("DELETE", f"/issue/{key}", params={"deleteSubtasks": "true"})
 
+    def assign_issue(self, key: str, account_id: str | None) -> None:
+        """Assign via dedicated endpoint (better board/notification sync than fields.assignee)."""
+        # Jira Cloud: omit or null accountId → Unassigned
+        self._req("PUT", f"/issue/{key}/assignee", json={"accountId": account_id})
+
     def browse_url(self, key):
         return f"{self.base_url}/browse/{key}"
+
+    def find_account_id(self, email: str) -> str:
+        """Resolve email → Jira Cloud accountId (user search).
+
+        Exact emailAddress match only. Jira Cloud often hides emails in search
+        results; do NOT fall back to the first fuzzy hit (assigns the wrong user).
+        Prefer pinning ``jira_account_id`` in accounts.csv when email is private.
+        """
+        q = (email or "").strip()
+        if not q:
+            raise JiraError("email is required to resolve assignee")
+        r = self._req("GET", "/user/search", params={"query": q, "maxResults": 10})
+        users = r.json() if isinstance(r.json(), list) else []
+        q_low = q.lower()
+        for u in users:
+            if (u.get("emailAddress") or "").lower() == q_low and u.get("accountId"):
+                return u["accountId"]
+        raise JiraError(
+            f"No Jira user with exact emailAddress={q!r}. "
+            "Pin jira_account_id in accounts.csv (Jira Cloud often hides emails)."
+        )
 
 
 class MockJiraClient(JiraClient):
@@ -149,6 +178,7 @@ class MockJiraClient(JiraClient):
             pk = fields.get("project", {}).get("key", self._default_project)
             key = self._next_key(pk)
             parent = fields.get("parent") or {}
+            assignee = fields.get("assignee") or {}
             self._state["issues"][key] = {
                 "project": pk,
                 "summary": fields.get("summary"),
@@ -156,6 +186,11 @@ class MockJiraClient(JiraClient):
                 "labels": fields.get("labels", []),
                 "duedate": fields.get("duedate"),
                 "parent": parent.get("key"),
+                "assignee": {
+                    "accountId": assignee.get("accountId"),
+                    "displayName": assignee.get("displayName") or "",
+                    "emailAddress": "",
+                } if assignee.get("accountId") else None,
             }
             self._save()
             return {"key": key, "url": self.browse_url(key)}
@@ -168,5 +203,23 @@ class MockJiraClient(JiraClient):
             self._state["issues"].pop(key, None)
             self._save()
 
+    def assign_issue(self, key: str, account_id: str | None) -> None:
+        with self._lock:
+            it = self._state["issues"].get(key)
+            if not it:
+                raise JiraError(f"Unknown issue {key}")
+            if account_id:
+                it["assignee"] = {
+                    "accountId": account_id,
+                    "displayName": "",
+                    "emailAddress": "",
+                }
+            else:
+                it["assignee"] = None
+            self._save()
+
     def browse_url(self, key):
         return f"mock://jira/browse/{key}"
+
+    def find_account_id(self, email: str) -> str:
+        return f"mock-account:{email.strip().lower()}"

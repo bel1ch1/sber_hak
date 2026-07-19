@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+.venv/
 .env
 .mock_state.json
 outcome_cards.jsonl

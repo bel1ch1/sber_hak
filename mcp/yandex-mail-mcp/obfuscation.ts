@@ -27,14 +27,27 @@ export interface Obfuscator {
   readonly enabled: boolean
   /** Register the authenticated login so it masks to SELF_ID in results. */
   registerSelf(login: string): void
+  /** Remember opaque to/cc for a message so SENT read-back keeps requested ids. */
+  rememberSend(messageId: string, to: string[], cc?: string[]): void
   /** Resolve agent-supplied IDs to real emails. Order preserved for resolved ones. */
   resolveRecipients(ids: string[]): { emails: string[]; unknown: string[] }
+  /**
+   * Expand opaque ids in free text (subject/body) to real emails/logins before SMTP send.
+   * Agent keeps writing ids; recipients see addresses. Unknown tokens left unchanged.
+   */
+  expandIdsInText(text: string): string
   /** Mask a single "Name <email>" / "email" address into its ID. */
   maskAddress(addr: string): string
   maskAddresses(addrs: string[]): string[]
-  maskListItems<T extends { from: string[]; to: string[] }>(items: T[]): T[]
-  maskMessage<T extends { from: string[]; to: string[]; cc: string[] }>(msg: T): T
-  maskSendResult<T extends { accepted: string[]; rejected: string[] }>(r: T): T
+  maskListItems<T extends { from: string[]; to: string[]; uid?: string | number }>(items: T[]): T[]
+  maskMessage<T extends { from: string[]; to: string[]; cc: string[]; uid?: string | number }>(msg: T): T
+  /**
+   * Echo opaque ids from the send request (shared demo mailbox must not collapse to self).
+   */
+  maskSendResult<T extends { accepted: string[]; rejected: string[]; messageId?: string; message_id?: string }>(
+    r: T,
+    requested: { to: string[]; cc?: string[]; bcc?: string[] },
+  ): T
 }
 
 /** Extracts the bare email from "Name <email>" or "email". Null if none. */
@@ -55,6 +68,8 @@ class DirectoryObfuscator implements Obfuscator {
   private selfEmail: string | null = null
   /** ext_<hash> -> real email, minted at runtime for unknown senders. */
   private readonly extToEmail = new Map<string, string>()
+  private readonly recentSends = new Map<string, { to: string[]; cc: string[]; ts: number }>()
+  private static readonly REMEMBER_TTL_MS = 24 * 60 * 60 * 1000
 
   constructor(private readonly dir: RecipientDirectory) {}
 
@@ -62,11 +77,27 @@ class DirectoryObfuscator implements Obfuscator {
     this.selfEmail = login?.trim() ? login.trim().toLowerCase() : null
   }
 
-  private maskEmail(email: string): string {
+  rememberSend(messageId: string, to: string[], cc: string[] = []): void {
+    const id = (messageId || "").trim()
+    if (!id) return
+    const cutoff = Date.now() - DirectoryObfuscator.REMEMBER_TTL_MS
+    for (const [k, v] of this.recentSends) {
+      if (v.ts < cutoff) this.recentSends.delete(k)
+    }
+    this.recentSends.set(id, { to: [...to], cc: [...cc], ts: Date.now() })
+  }
+
+  private lookupSend(uid: string | number | undefined): { to: string[]; cc: string[] } | null {
+    if (uid === undefined || uid === null) return null
+    return this.recentSends.get(String(uid)) ?? null
+  }
+
+  private maskEmail(email: string, preferSelf: boolean): string {
     const key = email.toLowerCase()
-    if (this.selfEmail && key === this.selfEmail) return SELF_ID
+    if (preferSelf && this.selfEmail && key === this.selfEmail) return SELF_ID
     const known = this.dir.byEmail.get(key)
     if (known) return known
+    if (this.selfEmail && key === this.selfEmail) return SELF_ID
     const token = extToken(key)
     if (!this.extToEmail.has(token)) this.extToEmail.set(token, email)
     return token
@@ -74,37 +105,45 @@ class DirectoryObfuscator implements Obfuscator {
 
   maskAddress(addr: string): string {
     const email = extractEmail(addr)
-    // Never fall through to the raw string: a display name is PII too.
-    return email ? this.maskEmail(email) : "(hidden)"
+    return email ? this.maskEmail(email, true) : "(hidden)"
   }
 
-  maskAddresses(addrs: string[]): string[] {
-    return addrs.map((a) => this.maskAddress(a))
+  maskAddresses(addrs: string[], preferSelf = true): string[] {
+    return addrs.map((a) => {
+      const email = extractEmail(a)
+      return email ? this.maskEmail(email, preferSelf) : "(hidden)"
+    })
   }
 
-  maskListItems<T extends { from: string[]; to: string[] }>(items: T[]): T[] {
-    return items.map((it) => ({
-      ...it,
-      from: this.maskAddresses(it.from),
-      to: this.maskAddresses(it.to),
-    }))
+  maskListItems<T extends { from: string[]; to: string[]; uid?: string | number }>(items: T[]): T[] {
+    return items.map((it) => {
+      const remembered = this.lookupSend(it.uid)
+      return {
+        ...it,
+        from: this.maskAddresses(it.from, true),
+        to: remembered ? remembered.to : this.maskAddresses(it.to, false),
+      }
+    })
   }
 
-  maskMessage<T extends { from: string[]; to: string[]; cc: string[] }>(msg: T): T {
+  maskMessage<T extends { from: string[]; to: string[]; cc: string[]; uid?: string | number }>(msg: T): T {
+    const remembered = this.lookupSend(msg.uid)
     return {
       ...msg,
-      from: this.maskAddresses(msg.from),
-      to: this.maskAddresses(msg.to),
-      cc: this.maskAddresses(msg.cc),
+      from: this.maskAddresses(msg.from, true),
+      to: remembered ? remembered.to : this.maskAddresses(msg.to, false),
+      cc: remembered ? remembered.cc : this.maskAddresses(msg.cc, false),
     }
   }
 
-  maskSendResult<T extends { accepted: string[]; rejected: string[] }>(r: T): T {
-    return {
-      ...r,
-      accepted: this.maskAddresses(r.accepted),
-      rejected: this.maskAddresses(r.rejected),
-    }
+  maskSendResult<T extends { accepted: string[]; rejected: string[]; messageId?: string; message_id?: string }>(
+    r: T,
+    requested: { to: string[]; cc?: string[]; bcc?: string[] },
+  ): T {
+    const accepted = [...requested.to, ...(requested.cc ?? []), ...(requested.bcc ?? [])]
+    const mid = (r.messageId || r.message_id || "").toString()
+    if (mid) this.rememberSend(mid, requested.to, requested.cc ?? [])
+    return { ...r, accepted, rejected: [] }
   }
 
   resolveRecipients(ids: string[]): { emails: string[]; unknown: string[] } {
@@ -130,14 +169,46 @@ class DirectoryObfuscator implements Obfuscator {
     }
     return { emails, unknown }
   }
+
+  expandIdsInText(text: string): string {
+    if (!text) return text
+    // Longer ids first so usr_employee is not partially shadowed by a shorter prefix id.
+    const pairs: Array<{ id: string; login: string }> = []
+    for (const e of this.dir.entries) {
+      pairs.push({ id: e.id, login: e.email })
+    }
+    for (const [token, email] of this.extToEmail) {
+      pairs.push({ id: token, login: email })
+    }
+    if (this.selfEmail) {
+      pairs.push({ id: SELF_ID, login: this.selfEmail })
+    }
+    pairs.sort((a, b) => b.id.length - a.id.length)
+
+    let out = text
+    for (const { id, login } of pairs) {
+      // Word-ish boundary: id must not be glued to [A-Za-z0-9_].
+      const re = new RegExp(`(?<![A-Za-z0-9_])${escapeRegExp(id)}(?![A-Za-z0-9_])`, "g")
+      out = out.replace(re, login)
+    }
+    return out
+  }
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 /** Pass-through obfuscator for when MAIL_OBFUSCATION is disabled. */
 class PassthroughObfuscator implements Obfuscator {
   readonly enabled = false
   registerSelf(): void {}
+  rememberSend(): void {}
   resolveRecipients(ids: string[]): { emails: string[]; unknown: string[] } {
     return { emails: ids, unknown: [] }
+  }
+  expandIdsInText(text: string): string {
+    return text
   }
   maskAddress(addr: string): string {
     return addr
@@ -151,7 +222,10 @@ class PassthroughObfuscator implements Obfuscator {
   maskMessage<T extends { from: string[]; to: string[]; cc: string[] }>(msg: T): T {
     return msg
   }
-  maskSendResult<T extends { accepted: string[]; rejected: string[] }>(r: T): T {
+  maskSendResult<T extends { accepted: string[]; rejected: string[] }>(
+    r: T,
+    _requested: { to: string[]; cc?: string[]; bcc?: string[] },
+  ): T {
     return r
   }
 }

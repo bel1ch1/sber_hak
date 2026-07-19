@@ -6,19 +6,21 @@ MCP-сервер, дающий онбординг-агенту руки в Jira:
 (Jira Cloud REST API v2, Basic-auth email + API-token; тот же путь годится и для
 Jira Data Center).
 
+Зависимости и запуск — через [uv](https://docs.astral.sh/uv/) (`astral-uv`).
+
 ## Быстрый старт (mock, без Jira)
 
 ```bash
-cd hackathon
-python3 -m venv .venv && ./.venv/bin/pip install -r jira_mcp/requirements.txt
-cd jira_mcp
-JIRA_MODE=mock ../.venv/bin/python server.py
+cd mcp/jira-mcp
+uv sync
+uv run server.py
+# или: ./run_mock.sh
 # -> http://127.0.0.1:9101/mcp
 ```
 
 Проверка логики без сервера:
 ```bash
-../.venv/bin/python test_smoke.py   # -> SMOKE OK ✅
+uv run test_smoke.py   # -> SMOKE OK ✅
 ```
 
 ## Подключение к Ouroboros
@@ -40,7 +42,14 @@ Settings → Advanced → MCP:
    JIRA_EMAIL=<твой email>
    JIRA_API_TOKEN=<token>
    ```
-4. Запусти: `set -a; source .env; set +a; ../.venv/bin/python server.py`
+4. Запусти:
+   ```bash
+   uv run --env-file .env server.py
+   # или: ./run_real.sh
+   ```
+5. Проверка подключения: `uv run verify_real.py`
+
+Подробно: [SETUP_JIRA_CLOUD.md](SETUP_JIRA_CLOUD.md).
 
 ## Тулзы
 
@@ -49,7 +58,8 @@ Settings → Advanced → MCP:
 | `jira_get_project` | read | auto | метаданные проекта, типы задач |
 | `jira_search` | read | auto | JQL-поиск (в т.ч. проверка дублей) |
 | `jira_create_issue` | write | draft→approve | одна задача |
-| `jira_create_onboarding_plan` | write | **dry_run → approve → commit** | Epic + ~20 задач из шаблона с дедлайнами |
+| `jira_build_probation_goals_xlsx` | read | auto | HR Excel «Цели на ИС» + preview (таблица) + base64 |
+| `jira_create_onboarding_plan` | write | **dry_run → approve → commit** | Epic + SMART-цели из шаблона роли |
 | `jira_rollback_plan` | write | approve | удалить всё по онбордингу (откат демо) |
 
 ## Human-in-the-loop и безопасность
@@ -81,12 +91,16 @@ Settings → Advanced → MCP:
 ## Файлы
 
 ```
-jira_mcp/
+jira-mcp/
+├── pyproject.toml       # зависимости для uv
+├── uv.lock              # зафиксированные версии
 ├── server.py            # FastMCP-сервер, 5 тулзов, streamable_http :9101
 ├── jira_client.py       # RealJiraClient (Cloud v2) + MockJiraClient
 ├── plan.py              # сборка плана из шаблона роли
 ├── templates/backend.yaml   # 20 задач backend-онбординга (редактируемо)
 ├── test_smoke.py        # offline-тест всей логики
-├── requirements.txt
+├── verify_real.py       # проверка .env → Jira Cloud
+├── run_mock.sh / run_real.sh
+├── requirements.txt     # pip-fallback (источник истины — pyproject.toml)
 └── config.example.env
 ```

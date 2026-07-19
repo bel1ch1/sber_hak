@@ -32,7 +32,7 @@ cd hackathon/confluence_mcp
 ## Файлы
 ```
 confluence_mcp/
-├── server.py             # FastMCP-сервер, 5 тулзов, :9103
+├── server.py             # FastMCP-сервер, tools + update_page, :9103
 ├── confluence_client.py  # Confluence Cloud REST v1 (Basic auth) + md<->storage
 ├── verify_confluence.py  # проверка подключения (секрет маскируется)
 ├── seed_confluence.py    # (опц.) залить 7 мок-страниц в space через API
